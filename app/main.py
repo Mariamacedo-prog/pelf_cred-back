@@ -3,7 +3,7 @@ from app.routes import root, auth, item
 from app.connection.database import create_db_and_tables
 from fastapi.middleware.cors import CORSMiddleware
 
-# uvicorn main:app --reload
+# uvicorn app.main:app --reload
 
 app = FastAPI(swagger_ui_parameters={"syntaxHighlight": False})
 
@@ -14,7 +14,7 @@ async def startup_event():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 👈 Pode mudar isso pra ["http://localhost:4200"] por segurança
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
