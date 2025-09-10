@@ -12,7 +12,7 @@ from app.connection.database import get_db
 
 router = APIRouter()
 
-@router.post("/login", response_model=LoginResponse, tags=["Auth"])
+@router.post("/api/v1/login", response_model=LoginResponse, tags=["Auth"])
 async def login(
     form_data: LoginRequest,
     db: AsyncSession = Depends(get_db)
@@ -47,7 +47,7 @@ async def login(
     return jwt_token
 
 
-@router.get("/refresh", response_model=LoginResponse, tags=["Auth"])
+@router.get("/api/v1/refresh", response_model=LoginResponse, tags=["Auth"])
 async def refresh(token: str, db: AsyncSession = Depends(get_db)):
     user = await verify_token(token, db)
 

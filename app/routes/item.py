@@ -8,7 +8,7 @@ from fastapi import APIRouter
 router = APIRouter()
 
 
-@router.get("/items", tags=["Items"])
+@router.get("/api/v1/items", tags=["Items"])
 async def read_items(db: AsyncSession = Depends(get_db)):
     result = await db.execute(text("select * from items;"))
     rows = result.fetchall()
@@ -16,7 +16,7 @@ async def read_items(db: AsyncSession = Depends(get_db)):
 
 
 
-@router.get("/items/{id}", tags=["Items"])
+@router.get("/api/v1/items/{id}", tags=["Items"])
 async def read_item(id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(text("SELECT * FROM items WHERE id = :id"), {"id": id})
     row = result.fetchone()
@@ -24,7 +24,7 @@ async def read_item(id: int, db: AsyncSession = Depends(get_db)):
         return dict(row._mapping)
     return {"error": "Item não localizado"}
 
-@router.post("/items", tags=["Items"])
+@router.post("/api/v1/items", tags=["Items"])
 async def create_item(item: ItemCreate, db: AsyncSession = Depends(get_db)):
     query = text("""
         INSERT INTO items (name, description, price)
@@ -36,7 +36,7 @@ async def create_item(item: ItemCreate, db: AsyncSession = Depends(get_db)):
     new_item = result.fetchone()
     return dict(new_item._mapping)
 
-@router.put("/items/{id}", tags=["Items"])
+@router.put("/api/v1/items/{id}", tags=["Items"])
 async def update_item(id: int, item: ItemCreate, db: AsyncSession = Depends(get_db)):
     query = text("""
         UPDATE items
@@ -53,7 +53,7 @@ async def update_item(id: int, item: ItemCreate, db: AsyncSession = Depends(get_
     return {"error": "Item not found"}
 
 
-@router.delete("/items/{id}", tags=["Items"])
+@router.delete("/api/v1/items/{id}", tags=["Items"])
 async def delete_item(id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(text("DELETE FROM items WHERE id = :id RETURNING id"), {"id": id})
     await db.commit()
