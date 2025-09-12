@@ -2,11 +2,9 @@ import bcrypt
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from typing import Annotated
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.User import User
-from app.schemas.User import UserInDB
 from app.connection.database import get_db
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
@@ -21,14 +19,13 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
-def create_token(user, duration_token=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)):
+def gerar_token(user, duration_token=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)):
     expires = datetime.now(timezone.utc) + duration_token
     info = {
         "id": str(user.id),
-        "doc": str(user.doc),
+        "cpf": str(user.cpf),
         "username": str(user.username),
-        "full_name": str(user.full_name),
-        "disabled": user.disabled,
+        "telefone": str(user.telefone),
         "email": str(user.email),
         "exp": int(expires.timestamp())
     }
@@ -36,7 +33,7 @@ def create_token(user, duration_token=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINU
     return jwt_encoded
 
 
-async def verify_token(token: str, db: AsyncSession = Depends(get_db)):
+async def verificar_token(token: str, db: AsyncSession = Depends(get_db)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = int(payload.get("id"))

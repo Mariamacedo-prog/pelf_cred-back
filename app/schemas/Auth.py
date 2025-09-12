@@ -3,8 +3,8 @@ from app.schemas.User import UserBase
 
 
 class LoginRequest(BaseModel):
-    doc: str
-    password: str
+    login: str
+    senha: str
 
 class LoginResponse(BaseModel):
     access_token: str
