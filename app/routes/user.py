@@ -1,18 +1,18 @@
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import and_
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
-from app.core.user_utils import criar_user
+from app.core.auth_utils import verificar_token
+from app.core.user_utils import criar_user, user_por_id, listar_users, atualizar_user
 from app.models.User import User
-from app.models.Endereco import Endereco
 from app.connection.database import get_db
 from app.schemas.Auth import LoginResponse
-from app.schemas.Endereco import EnderecoRequest
-from app.schemas.User import UserRequest, UserResponse
+from app.schemas.User import UserRequest, UserResponse, PaginatedUserResponse, UserUpdate
 
 router = APIRouter()
 
@@ -23,14 +23,14 @@ async def novo_usuario(form_data: UserRequest,
     resultCpf = await db.execute(queryCpf)
     userCpf = resultCpf.scalar_one_or_none()
     if userCpf:
-        raise HTTPException(status_code=400, detail=f"Este CPF ({form_data.cpf}) já está vinculado a um cadastro existente.")
+        raise HTTPException(status_code=400, detail=f"Este CPF já está vinculado a um cadastro existente.")
 
 
     queryEmail = select(User).where(User.email == form_data.email)
     resultEmail = await db.execute(queryEmail)
     userEmail = resultEmail.scalar_one_or_none()
     if userEmail:
-        raise HTTPException(status_code=400, detail=f"Este E-mail ({form_data.email}) já está vinculado a um cadastro existente.")
+        raise HTTPException(status_code=400, detail=f"Este E-mail já está vinculado a um cadastro existente.")
 
 
     if form_data.username:
@@ -39,7 +39,7 @@ async def novo_usuario(form_data: UserRequest,
         userUserName = resultUserName.scalar_one_or_none()
         if userUserName:
             raise HTTPException(status_code=400,
-                                detail=f"Este Username ({form_data.username}) já está vinculado a um cadastro existente.")
+                                detail=f"Este Username já está vinculado a um cadastro existente.")
 
     res = await criar_user(form_data, db)
 
@@ -47,8 +47,9 @@ async def novo_usuario(form_data: UserRequest,
 
 
 @router.get("/api/v1/user/{id}",response_model=UserResponse,  tags=["User"])
-async def novo_usuario(id: UUID,
-    db: AsyncSession = Depends(get_db)):
+async def usuario_por_id(id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(verificar_token)):
 
     query = select(User).where(User.id == id)
     result = await db.execute(query)
@@ -56,42 +57,25 @@ async def novo_usuario(id: UUID,
     if not user:
         raise HTTPException(status_code=400, detail="Usuário não localizado na base de dados.")
 
-    queryEndereco = select(Endereco).where(Endereco.id == user.endereco_id)
-    resultEndereco = await db.execute(queryEndereco)
-    userEndereco = resultEndereco.scalar_one_or_none()
+    res = await user_por_id(id, user, db )
 
-    endereco = None
+    return res
 
-    if userEndereco:
-        endereco = EnderecoRequest(
-            id=userEndereco.id,
-            cep=userEndereco.cep,
-            rua=userEndereco.rua,
-            numero=userEndereco.numero,
-            bairro=userEndereco.bairro,
-            complemento=userEndereco.complemento,
-            cidade=userEndereco.cidade,
-            uf=userEndereco.uf
-        )
 
-    usuario = UserResponse(
-        id=id,
-        username=user.username,
-        nome=user.nome,
-        cpf=user.cpf,
-        email=user.email,
-        telefone=user.telefone,
-        created_at=user.created_at,
-        updated_at=user.updated_at,
-        deleted_at=user.deleted_at,
-        endereco=endereco,
-    )
+@router.get("/api/v1/users", response_model=PaginatedUserResponse, tags=["User"])
+async def listar_usuarios(
+    pagina: int = Query(1, ge=1),
+    items: int = Query(10, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(verificar_token)
+):
+    res = await listar_users(pagina, items, db)
 
-    return usuario
+    return res
 
 
 @router.delete("/api/v1/user/{id}", tags=["User"])
-async def deletar_usuario(id: UUID, db: AsyncSession = Depends(get_db)):
+async def deletar_usuario(id: UUID, db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
     query = select(User).where(User.id == id)
     result = await db.execute(query)
     user = result.scalar_one_or_none()
@@ -107,3 +91,53 @@ async def deletar_usuario(id: UUID, db: AsyncSession = Depends(get_db)):
 
     await db.commit()
     return {"detail": f"Usuário desativado com sucesso."}
+
+
+@router.put("/api/v1/user/{id}", tags=["User"])
+async def atualizar_usuario(id: UUID, form_data: UserUpdate,
+    db: AsyncSession = Depends(get_db)):
+
+    if form_data.cpf:
+        queryCpf = select(User).where(
+            and_(
+                User.cpf == form_data.cpf,
+                User.disabled == False,
+                User.id != id,
+            )
+        )
+        resultCpf = await db.execute(queryCpf)
+        userCpf = resultCpf.scalar_one_or_none()
+        if userCpf:
+            raise HTTPException(status_code=400, detail=f"Este CPF já está vinculado a um outro cadastro.")
+
+    if form_data.email:
+        queryEmail = select(User).where(
+            and_(
+                User.email == form_data.email,
+                User.disabled == False,
+                User.id != id,
+            )
+        )
+        resultEmail = await db.execute(queryEmail)
+        userEmail = resultEmail.scalar_one_or_none()
+        if userEmail:
+            raise HTTPException(status_code=400, detail=f"Este E-mail já está vinculado a um outro cadastro.")
+
+
+    if form_data.username:
+        queryUserName = select(User).where(
+            and_(
+                User.username == form_data.username,
+                User.disabled == False,
+                User.id != id,
+            )
+        )
+        resultUserName = await db.execute(queryUserName)
+        userUserName = resultUserName.scalar_one_or_none()
+        if userUserName:
+            raise HTTPException(status_code=400,
+                                detail=f"Este Username já está vinculado a um cadastro existente.")
+
+    res = await atualizar_user(id, form_data, db)
+
+    return res

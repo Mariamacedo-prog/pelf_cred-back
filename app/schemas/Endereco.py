@@ -28,3 +28,13 @@ class EnderecoRequest(BaseModel):
     complemento: Optional[str]
     cidade: Optional[str]
     uf: Optional[str]
+
+class EnderecoUpdate(BaseModel):
+    id: Optional[UUID] = Field(default_factory=uuid4)
+    cep: Optional[str]
+    rua: Optional[str]
+    numero: Optional[str]
+    bairro: Optional[str]
+    complemento: Optional[str]
+    cidade: Optional[str]
+    uf: Optional[str]

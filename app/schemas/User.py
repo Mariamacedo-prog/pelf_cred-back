@@ -1,9 +1,9 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID, uuid4
 from datetime import datetime
 
-from app.schemas.Endereco import EnderecoRequest
+from app.schemas.Endereco import EnderecoRequest, EnderecoUpdate
 
 
 class UserBase(BaseModel):
@@ -45,21 +45,23 @@ class UserResponse(BaseModel):
     endereco: EnderecoRequest = None
 
 
-class UserCreate(UserBase):
-    senha: str
+
+class PaginatedUserResponse(BaseModel):
+    total_items: int
+    total_paginas: int
+    pagina_atual: int
+    items: int
+    offset: int
+    data: List[UserResponse]
 
 class UserInDB(UserBase):
     hashed_senha: str
 
-class UserOut(BaseModel):
-    id: int
-    nome: str
-    cpf: str
-    email: EmailStr
-
-    class Config:
-        orm_mode = True
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
+class UserUpdate(BaseModel):
+    id: Optional[UUID] = Field(default_factory=uuid4)
+    username: Optional[str]  = None
+    nome: Optional[str] = None
+    cpf: Optional[str] = None
+    email: Optional[str] = None
+    telefone: Optional[str] = None
+    endereco: Optional[EnderecoUpdate] = None

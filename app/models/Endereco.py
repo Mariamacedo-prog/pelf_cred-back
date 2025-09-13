@@ -1,5 +1,6 @@
 import uuid
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy import Column, String, DateTime
 from app.connection.base_class import Base
@@ -18,3 +19,4 @@ class Endereco(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     deleted_at = Column(DateTime(timezone=True), nullable=True)
+    usuarios = relationship("User", back_populates="endereco")

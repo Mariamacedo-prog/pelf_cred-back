@@ -33,34 +33,24 @@ def gerar_token(user, duration_token=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUT
     return jwt_encoded
 
 
-async def verificar_token(token: str, db: AsyncSession = Depends(get_db)):
+async def verificar_token(token: str = Depends(oauth2_scheme)):
+    print(token)
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = int(payload.get("id"))
-
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get("id")
+        print("chegou aqui")
         if user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token inválido: ID ausente",
+                detail="Token inválido: usuário não encontrado",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        return user_id
     except JWTError:
+        print("parou aqui")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido ou expirado",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-    query = select(User).where(User.id == user_id)
-    result = await db.execute(query)
-    user = result.scalar_one_or_none()
-
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Usuário não encontrado",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    return user
 

@@ -1,5 +1,6 @@
 import uuid
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy import Column, String, Boolean, ForeignKey, DateTime
 from app.connection.base_class import Base
@@ -16,6 +17,7 @@ class User(Base):
     disabled = Column(Boolean, default=False)
     hashed_senha = Column(String)
     endereco_id = Column(UUID(as_uuid=True), ForeignKey("enderecos.id"), nullable=True)
+    endereco = relationship("Endereco", back_populates="usuarios")
     token = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
