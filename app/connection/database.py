@@ -6,7 +6,6 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from app.connection.base_class import Base
 from app.models.User import User
-from app.models.Item import Item
 from app.models.Endereco import Endereco
 
 load_dotenv()

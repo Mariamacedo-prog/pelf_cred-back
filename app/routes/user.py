@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -45,6 +46,18 @@ async def novo_usuario(form_data: UserRequest,
 
     return res
 
+@router.get("/api/v1/users", response_model=PaginatedUserResponse, tags=["User"])
+async def listar_usuarios(
+    pagina: int = Query(1, ge=1),
+    items: int = Query(10, ge=1, le=100),
+    filtro: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(verificar_token)
+):
+    res = await listar_users(pagina, items,filtro, db)
+
+    return res
+
 
 @router.get("/api/v1/user/{id}",response_model=UserResponse,  tags=["User"])
 async def usuario_por_id(id: UUID,
@@ -60,19 +73,6 @@ async def usuario_por_id(id: UUID,
     res = await user_por_id(id, user, db )
 
     return res
-
-
-@router.get("/api/v1/users", response_model=PaginatedUserResponse, tags=["User"])
-async def listar_usuarios(
-    pagina: int = Query(1, ge=1),
-    items: int = Query(10, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(verificar_token)
-):
-    res = await listar_users(pagina, items, db)
-
-    return res
-
 
 @router.delete("/api/v1/user/{id}", tags=["User"])
 async def deletar_usuario(id: UUID, db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
@@ -95,7 +95,9 @@ async def deletar_usuario(id: UUID, db: AsyncSession = Depends(get_db), user_id:
 
 @router.put("/api/v1/user/{id}", tags=["User"])
 async def atualizar_usuario(id: UUID, form_data: UserUpdate,
-    db: AsyncSession = Depends(get_db)):
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(verificar_token)
+    ):
 
     if form_data.cpf:
         queryCpf = select(User).where(

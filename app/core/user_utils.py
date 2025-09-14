@@ -1,4 +1,5 @@
 import uuid
+from typing import Optional
 
 import bcrypt
 from fastapi import Depends, HTTPException, Query
@@ -11,7 +12,7 @@ from app.connection.database import get_db
 from app.core.auth_utils import gerar_token
 from app.models.Endereco import Endereco
 from app.models.User import User
-from sqlalchemy import func
+from sqlalchemy import or_, func
 from sqlalchemy.orm import joinedload
 from app.schemas.Auth import LoginResponse
 from app.schemas.Endereco import EnderecoRequest
@@ -111,13 +112,26 @@ async def user_por_id(id: uuid.UUID, user: UserResponse,
     return usuario
 
 
-async def listar_users(pagina: int = Query(1, ge=1),
+async def listar_users(
+    pagina: int = Query(1, ge=1),
     items: int = Query(10, ge=1, le=100),
-    db: AsyncSession = Depends(get_db)):
-
+    filtro: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db)
+):
     offset = (pagina - 1) * items
 
-    total_query = select(func.count(User.id))
+    # Construir filtro
+    where_clause = [User.disabled == False]
+    if filtro:
+        filtro_str = f"%{filtro.lower()}%"
+        where_clause.append(
+            or_(
+                func.lower(User.nome).ilike(filtro_str),
+                func.lower(User.cpf).ilike(filtro_str)
+            )
+        )
+
+    total_query = select(func.count(User.id)).where(*where_clause)
     total_result = await db.execute(total_query)
     total_items = total_result.scalar()
 
@@ -126,6 +140,7 @@ async def listar_users(pagina: int = Query(1, ge=1),
     query = (
         select(User)
         .options(joinedload(User.endereco))
+        .where(*where_clause)
         .offset(offset)
         .limit(items)
     )
