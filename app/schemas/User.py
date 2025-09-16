@@ -63,5 +63,6 @@ class UserUpdate(BaseModel):
     nome: Optional[str] = None
     cpf: Optional[str] = None
     email: Optional[str] = None
+    senha: Optional[str] = None
     telefone: Optional[str] = None
     endereco: Optional[EnderecoUpdate] = None

@@ -207,6 +207,9 @@ async def atualizar_user(id: uuid.UUID, form_data: UserUpdate,
         user.email = form_data.email
     if form_data.telefone is not None:
         user.telefone = form_data.telefone
+    if form_data.senha is not None:
+        hash_senha = bcrypt.hashpw(form_data.senha.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        user.hash_senha = hash_senha
 
 
     if form_data.endereco:
