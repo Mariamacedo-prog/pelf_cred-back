@@ -1,11 +1,8 @@
-import bcrypt
+import uuid
+
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.future import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.models.User import User
-from app.connection.database import get_db
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 import os
@@ -34,11 +31,9 @@ def gerar_token(user, duration_token=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUT
 
 
 async def verificar_token(token: str = Depends(oauth2_scheme)):
-    print(token)
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
         user_id = payload.get("id")
-        print("chegou aqui")
         if user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -47,7 +42,6 @@ async def verificar_token(token: str = Depends(oauth2_scheme)):
             )
         return user_id
     except JWTError:
-        print("parou aqui")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido ou expirado",

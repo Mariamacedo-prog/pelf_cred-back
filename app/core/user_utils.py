@@ -7,10 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import timedelta
 
 from starlette import status
+from starlette.responses import JSONResponse
 
 from app.connection.database import get_db
-from app.core.auth_utils import gerar_token
+from app.core.auth_utils import gerar_token, verificar_token
+from app.core.log_utils import limpar_dict_para_json
 from app.models.Endereco import Endereco
+from app.models.Log import Log
 from app.models.User import User
 from sqlalchemy import or_, func
 from sqlalchemy.orm import joinedload
@@ -27,7 +30,7 @@ def get_user(db, username: str):
 
 
 async def criar_user(form_data: UserRequest,
-    db: AsyncSession = Depends(get_db), ):
+    db: AsyncSession = Depends(get_db)):
 
     endereco_id = None
     if form_data.endereco:
@@ -65,6 +68,21 @@ async def criar_user(form_data: UserRequest,
     )
 
     db.add(novo_user)
+
+    dados_antigos = None
+    dados_novos = limpar_dict_para_json(form_data)
+
+    log = Log(
+        tabela_afetada="usuario",
+        operacao="CREATE",
+        registro_id=form_data.id,
+        dados_antes=dados_antigos,
+        dados_depois=dados_novos,
+        usuario_id=form_data.id
+    )
+
+    db.add(log)
+    
     await db.commit()
     await db.refresh(novo_user)
 
@@ -188,7 +206,7 @@ async def listar_users(
 
 
 async def atualizar_user(id: uuid.UUID, form_data: UserUpdate,
-                   db: AsyncSession = Depends(get_db)):
+                   db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
     result = await db.execute(select(User).where(User.id == id))
     user = result.scalar_one_or_none()
     if not user:
@@ -196,6 +214,8 @@ async def atualizar_user(id: uuid.UUID, form_data: UserUpdate,
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Usuário não encontrado"
         )
+
+    dados_antigos = limpar_dict_para_json(user)
 
     if form_data.nome is not None:
         user.nome = form_data.nome
@@ -222,6 +242,7 @@ async def atualizar_user(id: uuid.UUID, form_data: UserUpdate,
             user.endereco_id = endereco.id
 
         endereco_data = form_data.endereco
+        dados_antigos_endereco = limpar_dict_para_json(endereco)
 
         if endereco_data.cep is not None:
             endereco.cep = endereco_data.cep
@@ -240,8 +261,35 @@ async def atualizar_user(id: uuid.UUID, form_data: UserUpdate,
 
         db.add(endereco)
 
+        dados_novos_endereco = limpar_dict_para_json(endereco)
+        log_endereco = Log(
+            tabela_afetada="endereco",
+            operacao="UPDATE",
+            registro_id=user.id,
+            dados_antes=dados_antigos_endereco,
+            dados_depois=dados_novos_endereco,
+            usuario_id=uuid.UUID(user_id)
+        )
+
+        db.add(log_endereco)
+
+    dados_novos = limpar_dict_para_json(user)
+    log = Log(
+        tabela_afetada="usuario",
+        operacao="UPDATE",
+        registro_id=user.id,
+        dados_antes=dados_antigos,
+        dados_depois=dados_novos,
+        usuario_id=uuid.UUID(user_id)
+    )
+
+    db.add(log)
+
     await db.commit()
     await db.refresh(user)
 
-    return {"detail": "Usuário atualizado com sucesso"}
+    return JSONResponse(
+        content={"detail": "Usuário atualizado com sucesso"},
+        media_type="application/json; charset=utf-8"
+    )
 

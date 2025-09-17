@@ -4,7 +4,7 @@ import bcrypt
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import update
+from sqlalchemy import update, and_
 from app.core.auth_utils import gerar_token, verificar_token
 from app.schemas.Auth import LoginRequest, LoginResponse
 from app.models.User import User
@@ -17,7 +17,11 @@ async def login(
     form_data: LoginRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    query = select(User).where(User.cpf == form_data.login)
+    query = select(User).where(
+        and_(
+            User.cpf == form_data.login,
+            User.disabled == False
+        ))
     result = await db.execute(query)
     user = result.scalar_one_or_none()
 
