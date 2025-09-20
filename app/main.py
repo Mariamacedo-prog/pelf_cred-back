@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routes import root, auth, item, user
+from app.routes import root, auth, cliente, user, logs
 from app.connection.database import create_db_and_tables
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -20,8 +20,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(root.router)
+app.include_router(logs.router)
 app.include_router(auth.router)
 app.include_router(user.router)
-
+app.include_router(cliente.router)
 

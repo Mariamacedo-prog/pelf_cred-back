@@ -8,6 +8,7 @@ from app.connection.base_class import Base
 from app.models.User import User
 from app.models.Endereco import Endereco
 from app.models.Log import Log
+from app.models.Cliente import Cliente
 
 load_dotenv()
 

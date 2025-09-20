@@ -53,7 +53,7 @@ async def usuario_por_id(id: UUID,
 
 @router.post("/api/v1/novo/user",response_model=LoginResponse, tags=["User"])
 async def novo_usuario(form_data: UserRequest,
-    db: AsyncSession = Depends(get_db)):
+    db: AsyncSession = Depends(get_db), ):
     queryCpf = select(User).where(User.cpf == form_data.cpf)
     resultCpf = await db.execute(queryCpf)
     userCpf = resultCpf.scalar_one_or_none()
@@ -152,6 +152,7 @@ async def deletar_usuario(id: UUID, db: AsyncSession = Depends(get_db), user_id:
 
     user.disabled = True
     user.deleted_at = datetime.utcnow()
+    user.deleted_by = uuid.UUID(user_id)
 
     dados_novos = limpar_dict_para_json(user)
 

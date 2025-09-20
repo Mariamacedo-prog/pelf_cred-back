@@ -217,6 +217,8 @@ async def atualizar_user(id: uuid.UUID, form_data: UserUpdate,
 
     dados_antigos = limpar_dict_para_json(user)
 
+    user.updated_by = uuid.UUID(user_id)
+
     if form_data.nome is not None:
         user.nome = form_data.nome
     if form_data.username is not None:
@@ -230,7 +232,6 @@ async def atualizar_user(id: uuid.UUID, form_data: UserUpdate,
     if form_data.senha is not None:
         hash_senha = bcrypt.hashpw(form_data.senha.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
         user.hash_senha = hash_senha
-
 
     if form_data.endereco:
         if user.endereco_id:
