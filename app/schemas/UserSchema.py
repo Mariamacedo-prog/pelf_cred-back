@@ -3,18 +3,19 @@ from typing import Optional, List
 from uuid import UUID, uuid4
 from datetime import datetime
 
-from app.schemas.Endereco import EnderecoRequest, EnderecoUpdate
+from app.schemas.EnderecoSchema import EnderecoRequest, EnderecoUpdate
 
 
-class ClienteBase(BaseModel):
+class UserBase(BaseModel):
     id: Optional[UUID] = Field(default_factory=uuid4)
-    endereco_id: Optional[UUID] = None
+    username: Optional[str]  = None
     nome: str
-    documento: str
+    cpf: str
     email: EmailStr
     telefone: Optional[str] = None
-    grupo_segmento:  Optional[str] = None
     disabled: Optional[bool] = None
+    endereco_id: Optional[UUID] = None
+    token: Optional[str] = None
     created_by: Optional[UUID] = None
     updated_by: Optional[UUID] = None
     deleted_by: Optional[UUID] = None
@@ -23,47 +24,48 @@ class ClienteBase(BaseModel):
     deleted_at: Optional[datetime] = None
 
 
-class ClienteRequest(BaseModel):
+class UserRequest(BaseModel):
     id: Optional[UUID] = Field(default_factory=uuid4)
+    username: Optional[str]  = None
     nome: str
-    documento: str
+    cpf: str
+    senha: str
     email: EmailStr
     telefone: Optional[str] = None
-    grupo_segmento: Optional[str] = None
     endereco: EnderecoRequest
 
-
-class ClienteResponse(BaseModel):
+class UserResponse(BaseModel):
     id: Optional[UUID] = Field(default_factory=uuid4)
+    username: Optional[str]  = None
     nome: str
-    documento: str
+    cpf: str
     email: EmailStr
     telefone: Optional[str] = None
-    grupo_segmento: Optional[str] = None
-    endereco: EnderecoRequest = None
-    disabled: Optional[bool] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     deleted_at: Optional[datetime] = None
     created_by: Optional[UUID] = None
     updated_by: Optional[UUID] = None
     deleted_by: Optional[UUID] = None
+    endereco: EnderecoRequest = None
 
-
-class PaginatedClienteResponse(BaseModel):
+class PaginatedUserResponse(BaseModel):
     total_items: int
     total_paginas: int
     pagina_atual: int
     items: int
     offset: int
-    data: List[ClienteResponse]
+    data: List[UserResponse]
 
+class UserInDB(UserBase):
+    hashed_senha: str
 
-class ClienteUpdate(BaseModel):
+class UserUpdate(BaseModel):
     id: Optional[UUID] = Field(default_factory=uuid4)
-    documento: Optional[str]  = None
+    username: Optional[str]  = None
     nome: Optional[str] = None
+    cpf: Optional[str] = None
+    email: Optional[str] = None
+    senha: Optional[str] = None
     telefone: Optional[str] = None
-    email: Optional[EmailStr] = None
-    grupo_segmento: Optional[str] = None
     endereco: Optional[EnderecoUpdate] = None

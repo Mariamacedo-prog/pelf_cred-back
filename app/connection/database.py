@@ -5,10 +5,10 @@ from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from app.connection.base_class import Base
-from app.models.User import User
-from app.models.Endereco import Endereco
-from app.models.Log import Log
-from app.models.Cliente import Cliente
+from app.models.UserModel import UserModel
+from app.models.EnderecoModel import EnderecoModel
+from app.models.LogModel import LogModel
+from app.models.ClienteModel import ClienteModel
 
 load_dotenv()
 

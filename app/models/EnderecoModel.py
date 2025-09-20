@@ -5,7 +5,7 @@ from sqlalchemy.sql import func
 from sqlalchemy import Column, String, DateTime
 from app.connection.base_class import Base
 
-class Endereco(Base):
+class EnderecoModel(Base):
     __tablename__ = "enderecos"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)

@@ -6,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import update, and_
 from app.core.auth_utils import gerar_token, verificar_token
-from app.schemas.Auth import LoginRequest, LoginResponse
-from app.models.User import User
+from app.schemas.AuthSchema import LoginRequest, LoginResponse
+from app.models.UserModel import UserModel
 from app.connection.database import get_db
 
 router = APIRouter()
@@ -17,10 +17,10 @@ async def login(
     form_data: LoginRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    query = select(User).where(
+    query = select(UserModel).where(
         and_(
-            User.cpf == form_data.login,
-            User.disabled == False
+            UserModel.cpf == form_data.login,
+            UserModel.disabled == False
         ))
     result = await db.execute(query)
     user = result.scalar_one_or_none()
@@ -34,8 +34,8 @@ async def login(
     new_token = gerar_token(user)
     refresh_token = gerar_token(user, timedelta(days=7))
     stmt = (
-        update(User)
-        .where(User.cpf == form_data.login)
+        update(UserModel)
+        .where(UserModel.cpf == form_data.login)
         .values(token=refresh_token)
     )
 

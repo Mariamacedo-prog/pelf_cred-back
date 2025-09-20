@@ -14,11 +14,11 @@ from starlette.responses import JSONResponse
 from app.core.auth_utils import verificar_token
 from app.core.log_utils import limpar_dict_para_json
 from app.core.cliente_utils import criar, listar_por_id, listar, atualizar
-from app.models.Cliente import Cliente
-from app.models.Log import Log
+from app.models.ClienteModel import ClienteModel
+from app.models.LogModel import LogModel
 
 from app.connection.database import get_db
-from app.schemas.Cliente import ClienteResponse, ClienteRequest, PaginatedClienteResponse, ClienteUpdate
+from app.schemas.ClienteSchema import ClienteResponse, ClienteRequest, PaginatedClienteResponse, ClienteUpdate
 
 router = APIRouter()
 
@@ -42,7 +42,7 @@ async def cliente_por_id(id: UUID,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(verificar_token)):
 
-    query = select(Cliente).where(Cliente.id == id)
+    query = select(ClienteModel).where(ClienteModel.id == id)
     result = await db.execute(query)
     cliente = result.scalar_one_or_none()
     if not cliente:
@@ -57,7 +57,7 @@ async def cliente_por_id(id: UUID,
 async def novo_cliente(form_data: ClienteRequest,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(verificar_token) ):
-    queryDocumento = select(Cliente).where(Cliente.documento == form_data.documento)
+    queryDocumento = select(ClienteModel).where(ClienteModel.documento == form_data.documento)
     resultDocumento = await db.execute(queryDocumento)
     clienteDocumento = resultDocumento.scalar_one_or_none()
     if clienteDocumento:
@@ -76,11 +76,11 @@ async def atualizar_cliente(id: UUID, form_data: ClienteUpdate,
     ):
 
     if form_data.documento:
-        queryDocumento = select(Cliente).where(
+        queryDocumento = select(ClienteModel).where(
             and_(
-                Cliente.documento == form_data.documento,
-                Cliente.disabled == False,
-                Cliente.id != id,
+                ClienteModel.documento == form_data.documento,
+                ClienteModel.disabled == False,
+                ClienteModel.id != id,
             )
         )
         resultDocumento = await db.execute(queryDocumento)
@@ -96,7 +96,7 @@ async def atualizar_cliente(id: UUID, form_data: ClienteUpdate,
 
 @router.delete("/api/v1/cliente/{id}", tags=["Cliente"])
 async def deletar_cliente(id: UUID, db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
-    query = select(Cliente).where(Cliente.id == id)
+    query = select(ClienteModel).where(ClienteModel.id == id)
     result = await db.execute(query)
     cliente = result.scalar_one_or_none()
 
@@ -115,7 +115,7 @@ async def deletar_cliente(id: UUID, db: AsyncSession = Depends(get_db), user_id:
 
     dados_novos = limpar_dict_para_json(cliente)
 
-    log = Log(
+    log = LogModel(
         tabela_afetada="clientes",
         operacao="DELETE",
         registro_id=cliente.id,

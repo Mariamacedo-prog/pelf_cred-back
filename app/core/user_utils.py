@@ -12,14 +12,14 @@ from starlette.responses import JSONResponse
 from app.connection.database import get_db
 from app.core.auth_utils import gerar_token, verificar_token
 from app.core.log_utils import limpar_dict_para_json
-from app.models.Endereco import Endereco
-from app.models.Log import Log
-from app.models.User import User
+from app.models.EnderecoModel import EnderecoModel
+from app.models.LogModel import LogModel
+from app.models.UserModel import UserModel
 from sqlalchemy import or_, func
 from sqlalchemy.orm import joinedload
-from app.schemas.Auth import LoginResponse
-from app.schemas.Endereco import EnderecoRequest
-from app.schemas.User import UserInDB, UserRequest, UserResponse, UserUpdate
+from app.schemas.AuthSchema import LoginResponse
+from app.schemas.EnderecoSchema import EnderecoRequest
+from app.schemas.UserSchema import UserInDB, UserRequest, UserResponse, UserUpdate
 from sqlalchemy.future import select
 
 
@@ -35,7 +35,7 @@ async def criar_user(form_data: UserRequest,
     endereco_id = None
     if form_data.endereco:
         endereco_data = form_data.endereco
-        novo_endereco = Endereco(
+        novo_endereco = EnderecoModel(
             id=uuid.uuid4(),
             cep=endereco_data.cep,
             rua=endereco_data.rua,
@@ -54,7 +54,7 @@ async def criar_user(form_data: UserRequest,
     access_token = gerar_token(form_data, timedelta(days=7))
     hash_senha = bcrypt.hashpw(form_data.senha.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
-    novo_user = User(
+    novo_user = UserModel(
         id=form_data.id,
         nome=form_data.nome,
         username=form_data.username,
@@ -72,7 +72,7 @@ async def criar_user(form_data: UserRequest,
     dados_antigos = None
     dados_novos = limpar_dict_para_json(form_data)
 
-    log = Log(
+    log = LogModel(
         tabela_afetada="usuario",
         operacao="CREATE",
         registro_id=form_data.id,
@@ -96,7 +96,7 @@ async def criar_user(form_data: UserRequest,
 
 async def user_por_id(id: uuid.UUID, user: UserResponse,
                    db: AsyncSession = Depends(get_db)):
-    queryEndereco = select(Endereco).where(Endereco.id == user.endereco_id)
+    queryEndereco = select(EnderecoModel).where(EnderecoModel.id == user.endereco_id)
     resultEndereco = await db.execute(queryEndereco)
     userEndereco = resultEndereco.scalar_one_or_none()
 
@@ -139,25 +139,25 @@ async def listar_users(
     offset = (pagina - 1) * items
 
     # Construir filtro
-    where_clause = [User.disabled == False]
+    where_clause = [UserModel.disabled == False]
     if filtro:
         filtro_str = f"%{filtro.lower()}%"
         where_clause.append(
             or_(
-                func.lower(User.nome).ilike(filtro_str),
-                func.lower(User.cpf).ilike(filtro_str)
+                func.lower(UserModel.nome).ilike(filtro_str),
+                func.lower(UserModel.cpf).ilike(filtro_str)
             )
         )
 
-    total_query = select(func.count(User.id)).where(*where_clause)
+    total_query = select(func.count(UserModel.id)).where(*where_clause)
     total_result = await db.execute(total_query)
     total_items = total_result.scalar()
 
     total_paginas = (total_items + items - 1) // items if total_items > 0 else 0
 
     query = (
-        select(User)
-        .options(joinedload(User.endereco))
+        select(UserModel)
+        .options(joinedload(UserModel.endereco))
         .where(*where_clause)
         .offset(offset)
         .limit(items)
@@ -207,7 +207,7 @@ async def listar_users(
 
 async def atualizar_user(id: uuid.UUID, form_data: UserUpdate,
                    db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
-    result = await db.execute(select(User).where(User.id == id))
+    result = await db.execute(select(UserModel).where(UserModel.id == id))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(
@@ -235,10 +235,10 @@ async def atualizar_user(id: uuid.UUID, form_data: UserUpdate,
 
     if form_data.endereco:
         if user.endereco_id:
-            result = await db.execute(select(Endereco).where(Endereco.id == user.endereco_id))
+            result = await db.execute(select(EnderecoModel).where(EnderecoModel.id == user.endereco_id))
             endereco = result.scalar_one_or_none()
         else:
-            endereco = Endereco(id=uuid.uuid4())
+            endereco = EnderecoModel(id=uuid.uuid4())
             db.add(endereco)
             user.endereco_id = endereco.id
 
@@ -263,7 +263,7 @@ async def atualizar_user(id: uuid.UUID, form_data: UserUpdate,
         db.add(endereco)
 
         dados_novos_endereco = limpar_dict_para_json(endereco)
-        log_endereco = Log(
+        log_endereco = LogModel(
             tabela_afetada="endereco",
             operacao="UPDATE",
             registro_id=user.id,

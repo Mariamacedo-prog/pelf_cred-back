@@ -11,13 +11,13 @@ from starlette.responses import JSONResponse
 from app.connection.database import get_db
 from app.core.auth_utils import verificar_token
 from app.core.log_utils import limpar_dict_para_json
-from app.models.Cliente import Cliente
-from app.models.Endereco import Endereco
-from app.models.Log import Log
+from app.models.ClienteModel import ClienteModel
+from app.models.EnderecoModel import EnderecoModel
+from app.models.LogModel import LogModel
 from sqlalchemy import or_, func, cast, Date
 from sqlalchemy.orm import joinedload
-from app.schemas.Cliente import ClienteResponse, PaginatedClienteResponse, ClienteRequest, ClienteUpdate
-from app.schemas.Endereco import EnderecoRequest
+from app.schemas.ClienteSchema import ClienteResponse, PaginatedClienteResponse, ClienteRequest, ClienteUpdate
+from app.schemas.EnderecoSchema import EnderecoRequest
 from sqlalchemy.future import select
 
 
@@ -32,34 +32,34 @@ async def listar(
 ):
     offset = (pagina - 1) * items
 
-    where_clause = [Cliente.deleted_at == None]
+    where_clause = [ClienteModel.deleted_at == None]
 
     if(disabled != None):
-        where_clause.append(Cliente.disabled == disabled)
+        where_clause.append(ClienteModel.disabled == disabled)
 
     if buscar:
         filtro_str = f"%{buscar.lower()}%"
         where_clause.append(
             or_(
-                func.lower(Cliente.nome).ilike(filtro_str),
-                func.lower(Cliente.documento).ilike(filtro_str),
+                func.lower(ClienteModel.nome).ilike(filtro_str),
+                func.lower(ClienteModel.documento).ilike(filtro_str),
             )
         )
 
     if data_cadastro:
         where_clause.append(
-            cast(Cliente.created_at, Date) == data_cadastro.date()
+            cast(ClienteModel.created_at, Date) == data_cadastro.date()
         )
 
-    total_query = select(func.count(Cliente.id)).where(*where_clause)
+    total_query = select(func.count(ClienteModel.id)).where(*where_clause)
     total_result = await db.execute(total_query)
     total_items = total_result.scalar()
 
     total_paginas = (total_items + items - 1) // items if total_items > 0 else 0
 
     query = (
-        select(Cliente)
-        .options(joinedload(Cliente.endereco))
+        select(ClienteModel)
+        .options(joinedload(ClienteModel.endereco))
         .where(*where_clause)
         .offset(offset)
         .limit(items)
@@ -116,7 +116,7 @@ async def listar(
 
 async def listar_por_id(id: uuid.UUID, cliente: ClienteResponse,
                       db: AsyncSession = Depends(get_db)):
-    queryEndereco = select(Endereco).where(Endereco.id == cliente.endereco_id)
+    queryEndereco = select(EnderecoModel).where(EnderecoModel.id == cliente.endereco_id)
     resultEndereco = await db.execute(queryEndereco)
     clienteEndereco = resultEndereco.scalar_one_or_none()
 
@@ -161,7 +161,7 @@ async def criar(form_data: ClienteRequest,
     endereco_id = None
     if form_data.endereco:
         endereco_data = form_data.endereco
-        novo_endereco = Endereco(
+        novo_endereco = EnderecoModel(
             id=uuid.uuid4(),
             cep=endereco_data.cep,
             rua=endereco_data.rua,
@@ -177,7 +177,7 @@ async def criar(form_data: ClienteRequest,
 
     form_data.id = uuid.uuid4()
 
-    novo_cliente = Cliente(
+    novo_cliente = ClienteModel(
         id=form_data.id,
         endereco_id=endereco_id,
         nome=form_data.nome,
@@ -194,7 +194,7 @@ async def criar(form_data: ClienteRequest,
     dados_antigos = None
     dados_novos = limpar_dict_para_json(form_data)
 
-    log = Log(
+    log = LogModel(
         tabela_afetada="clientes",
         operacao="CREATE",
         registro_id=form_data.id,
@@ -217,7 +217,7 @@ async def criar(form_data: ClienteRequest,
 
 async def atualizar(id: uuid.UUID, form_data: ClienteUpdate,
                          db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
-    result = await db.execute(select(Cliente).where(Cliente.id == id))
+    result = await db.execute(select(ClienteModel).where(ClienteModel.id == id))
     cliente = result.scalar_one_or_none()
     if not cliente:
         raise HTTPException(
@@ -243,10 +243,10 @@ async def atualizar(id: uuid.UUID, form_data: ClienteUpdate,
 
     if form_data.endereco:
         if cliente.endereco_id:
-            result = await db.execute(select(Endereco).where(Endereco.id == cliente.endereco_id))
+            result = await db.execute(select(EnderecoModel).where(EnderecoModel.id == cliente.endereco_id))
             endereco = result.scalar_one_or_none()
         else:
-            endereco = Endereco(id=uuid.uuid4())
+            endereco = EnderecoModel(id=uuid.uuid4())
             db.add(endereco)
             cliente.endereco_id = endereco.id
 
@@ -270,7 +270,7 @@ async def atualizar(id: uuid.UUID, form_data: ClienteUpdate,
         db.add(endereco)
 
     dados_novos = limpar_dict_para_json(cliente)
-    log = Log(
+    log = LogModel(
         tabela_afetada="clientes",
         operacao="UPDATE",
         registro_id=cliente.id,

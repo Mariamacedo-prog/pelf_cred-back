@@ -13,11 +13,11 @@ from starlette.responses import JSONResponse
 from app.core.auth_utils import verificar_token
 from app.core.log_utils import limpar_dict_para_json
 from app.core.user_utils import criar_user, user_por_id, listar_users, atualizar_user
-from app.models.Log import Log
-from app.models.User import User
+from app.models.LogModel import LogModel
+from app.models.UserModel import UserModel
 from app.connection.database import get_db
-from app.schemas.Auth import LoginResponse
-from app.schemas.User import UserRequest, UserResponse, PaginatedUserResponse, UserUpdate
+from app.schemas.AuthSchema import LoginResponse
+from app.schemas.UserSchema import UserRequest, UserResponse, PaginatedUserResponse, UserUpdate
 
 router = APIRouter()
 
@@ -35,12 +35,12 @@ async def listar_usuarios(
     return res
 
 
-@router.get("/api/v1/user/{id}",response_model=UserResponse,  tags=["User"])
+@router.get("/api/v1/user/{id}", response_model=UserResponse,  tags=["User"])
 async def usuario_por_id(id: UUID,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(verificar_token)):
 
-    query = select(User).where(User.id == id)
+    query = select(UserModel).where(UserModel.id == id)
     result = await db.execute(query)
     user = result.scalar_one_or_none()
     if not user:
@@ -54,14 +54,14 @@ async def usuario_por_id(id: UUID,
 @router.post("/api/v1/novo/user",response_model=LoginResponse, tags=["User"])
 async def novo_usuario(form_data: UserRequest,
     db: AsyncSession = Depends(get_db), ):
-    queryCpf = select(User).where(User.cpf == form_data.cpf)
+    queryCpf = select(UserModel).where(UserModel.cpf == form_data.cpf)
     resultCpf = await db.execute(queryCpf)
     userCpf = resultCpf.scalar_one_or_none()
     if userCpf:
         raise HTTPException(status_code=400, detail=f"Este CPF já está vinculado a um cadastro existente.")
 
 
-    queryEmail = select(User).where(User.email == form_data.email)
+    queryEmail = select(UserModel).where(UserModel.email == form_data.email)
     resultEmail = await db.execute(queryEmail)
     userEmail = resultEmail.scalar_one_or_none()
     if userEmail:
@@ -69,7 +69,7 @@ async def novo_usuario(form_data: UserRequest,
 
 
     if form_data.username:
-        queryUserName = select(User).where(User.username == form_data.username)
+        queryUserName = select(UserModel).where(UserModel.username == form_data.username)
         resultUserName = await db.execute(queryUserName)
         userUserName = resultUserName.scalar_one_or_none()
         if userUserName:
@@ -89,11 +89,11 @@ async def atualizar_usuario(id: UUID, form_data: UserUpdate,
     ):
 
     if form_data.cpf:
-        queryCpf = select(User).where(
+        queryCpf = select(UserModel).where(
             and_(
-                User.cpf == form_data.cpf,
-                User.disabled == False,
-                User.id != id,
+                UserModel.cpf == form_data.cpf,
+                UserModel.disabled == False,
+                UserModel.id != id,
             )
         )
         resultCpf = await db.execute(queryCpf)
@@ -102,11 +102,11 @@ async def atualizar_usuario(id: UUID, form_data: UserUpdate,
             raise HTTPException(status_code=400, detail=f"Este CPF já está vinculado a um outro cadastro.")
 
     if form_data.email:
-        queryEmail = select(User).where(
+        queryEmail = select(UserModel).where(
             and_(
-                User.email == form_data.email,
-                User.disabled == False,
-                User.id != id,
+                UserModel.email == form_data.email,
+                UserModel.disabled == False,
+                UserModel.id != id,
             )
         )
         resultEmail = await db.execute(queryEmail)
@@ -116,11 +116,11 @@ async def atualizar_usuario(id: UUID, form_data: UserUpdate,
 
 
     if form_data.username:
-        queryUserName = select(User).where(
+        queryUserName = select(UserModel).where(
             and_(
-                User.username == form_data.username,
-                User.disabled == False,
-                User.id != id,
+                UserModel.username == form_data.username,
+                UserModel.disabled == False,
+                UserModel.id != id,
             )
         )
         resultUserName = await db.execute(queryUserName)
@@ -137,7 +137,7 @@ async def atualizar_usuario(id: UUID, form_data: UserUpdate,
 
 @router.delete("/api/v1/user/{id}", tags=["User"])
 async def deletar_usuario(id: UUID, db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
-    query = select(User).where(User.id == id)
+    query = select(UserModel).where(UserModel.id == id)
     result = await db.execute(query)
     user = result.scalar_one_or_none()
 
@@ -156,7 +156,7 @@ async def deletar_usuario(id: UUID, db: AsyncSession = Depends(get_db), user_id:
 
     dados_novos = limpar_dict_para_json(user)
 
-    log = Log(
+    log = LogModel(
         tabela_afetada="usuario",
         operacao="DELETE",
         registro_id=user.id,

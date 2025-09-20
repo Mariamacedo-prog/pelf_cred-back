@@ -5,7 +5,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.connection.base_class import Base
 
-class Log(Base):
+class LogModel(Base):
     __tablename__ = "log"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
