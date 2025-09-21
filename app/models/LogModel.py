@@ -17,4 +17,4 @@ class LogModel(Base):
     usuario_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
     data_hora = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    usuario = relationship("User", back_populates="log")
+    usuario = relationship("UserModel", back_populates="log")

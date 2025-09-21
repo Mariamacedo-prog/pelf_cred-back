@@ -15,7 +15,7 @@ class ClienteModel(Base):
     telefone = Column(String, index=True, nullable=False)
     email = Column(String, index=True, nullable=False)
     grupo_segmento = Column(String, index=True, nullable=True)
-    disabled = Column(Boolean, default=False)
+    ativo = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     created_by = Column(UUID(as_uuid=True), index=True, nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -23,4 +23,4 @@ class ClienteModel(Base):
     deleted_at = Column(DateTime(timezone=True), nullable=True)
     deleted_by = Column(UUID(as_uuid=True), index=True, nullable=True)
 
-    endereco = relationship("Endereco", back_populates="cliente")
+    endereco = relationship("EnderecoModel", back_populates="cliente")

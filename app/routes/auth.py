@@ -20,7 +20,7 @@ async def login(
     query = select(UserModel).where(
         and_(
             UserModel.cpf == form_data.login,
-            UserModel.disabled == False
+            UserModel.ativo == True
         ))
     result = await db.execute(query)
     user = result.scalar_one_or_none()

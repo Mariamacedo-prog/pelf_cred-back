@@ -14,7 +14,7 @@ class ClienteBase(BaseModel):
     email: EmailStr
     telefone: Optional[str] = None
     grupo_segmento:  Optional[str] = None
-    disabled: Optional[bool] = None
+    ativo: Optional[bool] = None
     created_by: Optional[UUID] = None
     updated_by: Optional[UUID] = None
     deleted_by: Optional[UUID] = None
@@ -41,7 +41,7 @@ class ClienteResponse(BaseModel):
     telefone: Optional[str] = None
     grupo_segmento: Optional[str] = None
     endereco: EnderecoRequest = None
-    disabled: Optional[bool] = None
+    ativo: Optional[bool] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     deleted_at: Optional[datetime] = None

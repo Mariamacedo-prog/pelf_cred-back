@@ -92,7 +92,7 @@ async def atualizar_usuario(id: UUID, form_data: UserUpdate,
         queryCpf = select(UserModel).where(
             and_(
                 UserModel.cpf == form_data.cpf,
-                UserModel.disabled == False,
+                UserModel.ativo == True,
                 UserModel.id != id,
             )
         )
@@ -105,7 +105,7 @@ async def atualizar_usuario(id: UUID, form_data: UserUpdate,
         queryEmail = select(UserModel).where(
             and_(
                 UserModel.email == form_data.email,
-                UserModel.disabled == False,
+                UserModel.ativo == True,
                 UserModel.id != id,
             )
         )
@@ -119,7 +119,7 @@ async def atualizar_usuario(id: UUID, form_data: UserUpdate,
         queryUserName = select(UserModel).where(
             and_(
                 UserModel.username == form_data.username,
-                UserModel.disabled == False,
+                UserModel.ativo == True,
                 UserModel.id != id,
             )
         )
@@ -150,7 +150,7 @@ async def deletar_usuario(id: UUID, db: AsyncSession = Depends(get_db), user_id:
 
     dados_antigos = limpar_dict_para_json(user)
 
-    user.disabled = True
+    user.ativo = False
     user.deleted_at = datetime.utcnow()
     user.deleted_by = uuid.UUID(user_id)
 

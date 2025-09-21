@@ -23,5 +23,5 @@ class EnderecoModel(Base):
     deleted_at = Column(DateTime(timezone=True), nullable=True)
     deleted_by = Column(UUID(as_uuid=True), index=True, nullable=True)
 
-    usuario = relationship("User", back_populates="endereco")
-    cliente = relationship("Cliente", back_populates="endereco")
+    usuario = relationship("UserModel", back_populates="endereco")
+    cliente = relationship("ClienteModel", back_populates="endereco")

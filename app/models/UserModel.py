@@ -14,7 +14,7 @@ class UserModel(Base):
     cpf = Column(String, unique=True, index=True, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
     telefone = Column(String, nullable=True)
-    disabled = Column(Boolean, default=False)
+    ativo = Column(Boolean, default=True)
     hashed_senha = Column(String)
     endereco_id = Column(UUID(as_uuid=True), ForeignKey("enderecos.id"), nullable=True)
     token = Column(String)
@@ -25,5 +25,5 @@ class UserModel(Base):
     deleted_at = Column(DateTime(timezone=True), nullable=True)
     deleted_by = Column(UUID(as_uuid=True), index=True, nullable=True)
 
-    endereco = relationship("Endereco", back_populates="usuario")
-    log = relationship("Log", back_populates="usuario")
+    endereco = relationship("EnderecoModel", back_populates="usuario")
+    log = relationship("LogModel", back_populates="usuario")

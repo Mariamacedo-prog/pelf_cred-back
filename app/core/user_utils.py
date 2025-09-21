@@ -61,7 +61,7 @@ async def criar_user(form_data: UserRequest,
         cpf=form_data.cpf,
         email=form_data.email,
         telefone=form_data.telefone,
-        disabled=False,
+        ativo=True,
         hashed_senha=hash_senha,
         endereco_id=endereco_id,
         token=access_token
@@ -73,7 +73,7 @@ async def criar_user(form_data: UserRequest,
     dados_novos = limpar_dict_para_json(form_data)
 
     log = LogModel(
-        tabela_afetada="usuario",
+        tabela_afetada="usuarios",
         operacao="CREATE",
         registro_id=form_data.id,
         dados_antes=dados_antigos,
@@ -139,7 +139,7 @@ async def listar_users(
     offset = (pagina - 1) * items
 
     # Construir filtro
-    where_clause = [UserModel.disabled == False]
+    where_clause = [UserModel.ativo == True]
     if filtro:
         filtro_str = f"%{filtro.lower()}%"
         where_clause.append(
@@ -275,8 +275,8 @@ async def atualizar_user(id: uuid.UUID, form_data: UserUpdate,
         db.add(log_endereco)
 
     dados_novos = limpar_dict_para_json(user)
-    log = Log(
-        tabela_afetada="usuario",
+    log = LogModel(
+        tabela_afetada="usuarios",
         operacao="UPDATE",
         registro_id=user.id,
         dados_antes=dados_antigos,

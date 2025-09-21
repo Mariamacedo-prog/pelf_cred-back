@@ -28,11 +28,11 @@ async def listar_clientes(
     items: int = Query(10, ge=1, le=100),
     search: Optional[str] = Query(None),
     data_cadastro: Optional[datetime] = Query(None),
-    disabled: Optional[bool] = Query(None),
+    ativo: Optional[bool] = Query(None),
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(verificar_token)
 ):
-    res = await listar(pagina, items,search,data_cadastro,disabled, db)
+    res = await listar(pagina, items,search,data_cadastro,ativo, db)
 
     return res
 
@@ -79,7 +79,7 @@ async def atualizar_cliente(id: UUID, form_data: ClienteUpdate,
         queryDocumento = select(ClienteModel).where(
             and_(
                 ClienteModel.documento == form_data.documento,
-                ClienteModel.disabled == False,
+                ClienteModel.ativo == True,
                 ClienteModel.id != id,
             )
         )
@@ -109,7 +109,7 @@ async def deletar_cliente(id: UUID, db: AsyncSession = Depends(get_db), user_id:
 
     dados_antigos = limpar_dict_para_json(cliente)
 
-    cliente.disabled = True
+    cliente.ativo = False
     cliente.deleted_at = datetime.utcnow()
     cliente.deleted_by = uuid.UUID(user_id)
 

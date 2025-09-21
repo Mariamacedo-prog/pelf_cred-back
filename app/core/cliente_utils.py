@@ -27,15 +27,15 @@ async def listar(
         items: int = Query(10, ge=1, le=100),
         buscar: Optional[str] = Query(None),
         data_cadastro: Optional[datetime] = Query(None),
-        disabled: Optional[bool] = Query(None),
+        ativo: Optional[bool] = Query(None),
         db: AsyncSession = Depends(get_db)
 ):
     offset = (pagina - 1) * items
 
     where_clause = [ClienteModel.deleted_at == None]
 
-    if(disabled != None):
-        where_clause.append(ClienteModel.disabled == disabled)
+    if(ativo != None):
+        where_clause.append(ClienteModel.ativo == ativo)
 
     if buscar:
         filtro_str = f"%{buscar.lower()}%"
@@ -89,7 +89,7 @@ async def listar(
             email=cliente.email,
             telefone=cliente.telefone,
             grupo_segmento=cliente.grupo_segmento,
-            disabled=cliente.disabled,
+            ativo=cliente.ativo,
             created_at=cliente.created_at,
             updated_at=cliente.updated_at,
             deleted_at=cliente.deleted_at,
@@ -141,7 +141,7 @@ async def listar_por_id(id: uuid.UUID, cliente: ClienteResponse,
         email=cliente.email,
         telefone=cliente.telefone,
         grupo_segmento=cliente.grupo_segmento,
-        disabled=cliente.disabled,
+        ativo=cliente.ativo,
         created_at=cliente.created_at,
         updated_at=cliente.updated_at,
         deleted_at=cliente.deleted_at,
@@ -184,7 +184,7 @@ async def criar(form_data: ClienteRequest,
         documento=form_data.documento,
         email=form_data.email,
         telefone=form_data.telefone,
-        disabled=False,
+        ativo=True,
         grupo_segmento=form_data.grupo_segmento,
         created_by= uuid.UUID(user_id)
     )

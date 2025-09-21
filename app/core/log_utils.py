@@ -6,36 +6,43 @@ from pydantic import BaseModel
 
 
 def limpar_dict_para_json(obj):
-    result = {}
+    import uuid
+    from datetime import datetime
+    from decimal import Decimal
+    from pydantic import BaseModel
 
+    # Se for UUID, retorna string
+    if isinstance(obj, uuid.UUID):
+        return str(obj)
+
+    # Se for datetime, retorna isoformat
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+
+    # Se for Decimal, converte para float
+    if isinstance(obj, Decimal):
+        return float(obj)
+
+    # Se for lista, processa cada item
+    if isinstance(obj, list):
+        return [limpar_dict_para_json(item) for item in obj]
+
+    # Se for BaseModel do Pydantic, transforma em dict
     if isinstance(obj, BaseModel):
         obj = obj.dict()
+
+    # Se for objeto com __dict__, pega o dict
     elif hasattr(obj, "__dict__"):
         obj = obj.__dict__
 
-    for key, value in obj.items():
-        if key == "_sa_instance_state":
-            continue
-
-        if isinstance(value, uuid.UUID):
-            result[key] = str(value)
-
-        elif isinstance(value, datetime):
-            result[key] = value.isoformat()
-
-        elif isinstance(value, Decimal):
-            result[key] = float(value)
-
-        elif isinstance(value, BaseModel):
+    # Se for dict, processa as chaves e valores
+    if isinstance(obj, dict):
+        result = {}
+        for key, value in obj.items():
+            if key == "_sa_instance_state":
+                continue
             result[key] = limpar_dict_para_json(value)
+        return result
 
-        elif isinstance(value, dict):
-            result[key] = limpar_dict_para_json(value)
-
-        elif isinstance(value, list):
-            result[key] = [limpar_dict_para_json(item) if isinstance(item, (dict, BaseModel)) else item for item in value]
-
-        else:
-            result[key] = value
-
-    return result
+    # Se chegou aqui, é um valor simples: retorna direto
+    return obj
