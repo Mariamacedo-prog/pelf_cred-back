@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routes import auth, cliente, user, logs, plano
+from app.routes import auth, cliente, user, logs, plano, servico
 from app.connection.database import create_db_and_tables
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -25,4 +25,4 @@ app.include_router(auth.router)
 app.include_router(user.router)
 app.include_router(cliente.router)
 app.include_router(plano.router)
-
+app.include_router(servico.router)

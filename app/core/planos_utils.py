@@ -1,14 +1,9 @@
 import uuid
-from decimal import Decimal
 from typing import Optional
 from uuid import UUID
-import json
-import bcrypt
 from fastapi import Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import timedelta, datetime
-
-from sqlalchemy.orm import class_mapper
+from datetime import datetime
 from starlette import status
 from starlette.responses import JSONResponse
 
@@ -20,17 +15,6 @@ from app.models.PlanoModel import PlanoModel
 from sqlalchemy import func, and_
 from app.schemas.PlanoSchema import PlanoBase, PlanoRequest, PlanoUpdate
 from sqlalchemy.future import select
-
-def convert_uuids_to_str(obj):
-    if isinstance(obj, dict):
-        return {k: convert_uuids_to_str(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [convert_uuids_to_str(i) for i in obj]
-    elif isinstance(obj, UUID):
-        return str(obj)
-    else:
-        return obj
-
 
 async def listar(
     pagina: int = Query(1, ge=1),
@@ -179,6 +163,12 @@ async def criar(form_data: PlanoRequest,
 async def atualizar(id: uuid.UUID, form_data: PlanoUpdate,
                    db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
 
+    query = select(PlanoModel).where(PlanoModel.id == id)
+    result = await db.execute(query)
+    plano = result.scalar_one_or_none()
+    if not plano:
+        raise HTTPException(status_code=400, detail="Plano não localizado na base de dados.")
+
     if form_data.nome:
         queryNome = select(PlanoModel).where(
             and_(
@@ -193,8 +183,12 @@ async def atualizar(id: uuid.UUID, form_data: PlanoUpdate,
             raise HTTPException(status_code=400,
                                 detail=f"Este Nome já está vinculado a um Plano existente.")
 
-    if form_data.valor_mensal <= 0:
-        raise HTTPException(status_code=400, detail=f"Insira o valor mensal!")
+    if form_data.nome is None:
+        raise HTTPException(status_code=400, detail=f"Insira o valor nome!")
+
+    if form_data.valor_mensal is not None:
+        if form_data.valor_mensal <= 0:
+            raise HTTPException(status_code=400, detail=f"Insira o valor mensal!")
 
     if not form_data.periodo_vigencia:
         raise HTTPException(status_code=400, detail=f"Insira o periodo vigencia!")

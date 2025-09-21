@@ -1,23 +1,13 @@
-import uuid
-from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_
-from sqlalchemy.future import select
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette import status
-from starlette.responses import JSONResponse
 
 from app.core.auth_utils import verificar_token
-from app.core.log_utils import limpar_dict_para_json
 from app.core.planos_utils import listar, por_id, criar, atualizar, delete
-from app.models.LogModel import LogModel
-from app.models.UserModel import UserModel
 from app.connection.database import get_db
 from app.schemas.PlanoSchema import PaginatedPlanoResponse, PlanoBase, PlanoRequest, PlanoUpdate
-from app.schemas.UserSchema import UserUpdate
 
 router = APIRouter()
 
