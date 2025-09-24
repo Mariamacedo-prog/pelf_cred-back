@@ -11,6 +11,8 @@ from app.models.LogModel import LogModel
 from app.models.ClienteModel import ClienteModel
 from app.models.PlanoModel import PlanoModel
 from app.models.ServicoModel import ServicoModel
+from app.models.VendedorModel import VendedorModel
+from app.models.AnexoModel import AnexoModel
 
 load_dotenv()
 

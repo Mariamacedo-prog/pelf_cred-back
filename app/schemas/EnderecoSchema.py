@@ -38,3 +38,9 @@ class EnderecoUpdate(BaseModel):
     complemento: Optional[str]
     cidade: Optional[str]
     uf: Optional[str]
+
+
+class CidadeResponse(BaseModel):
+    id: Optional[UUID] = Field(default_factory=uuid4)
+    cidade: Optional[str]
+    uf: Optional[str]
