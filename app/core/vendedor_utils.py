@@ -9,6 +9,7 @@ from starlette import status
 from starlette.responses import JSONResponse
 
 from app.connection.database import get_db
+from app.core.anexo_utils import base64_to_bytes, bytes_to_base64
 from app.core.auth_utils import verificar_token
 from app.core.log_utils import limpar_dict_para_json
 from app.models.AnexoModel import AnexoModel
@@ -24,100 +25,6 @@ from app.schemas.EnderecoSchema import EnderecoRequest
 from app.schemas.VendedorSchema import VendedorRequest, VendedorResponse, VendedorUpdate
 
 
-async def criar(form_data: VendedorRequest,
-                     db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
-
-    querycpf = select(VendedorModel).where(VendedorModel.cpf == form_data.cpf)
-    resultcpf = await db.execute(querycpf)
-    vendedorcpf = resultcpf.scalar_one_or_none()
-
-    if form_data.nome is None:
-        raise HTTPException(status_code=400, detail=f"Campo nome é obrigatório.")
-
-    if form_data.email is None:
-        raise HTTPException(status_code=400, detail=f"Campo e-mail é obrigatório.")
-
-    if form_data.telefone is None:
-        raise HTTPException(status_code=400, detail=f"Campo telefone é obrigatório.")
-
-    if form_data.cpf is None:
-        raise HTTPException(status_code=400, detail=f"Campo CPD é obrigatório.")
-
-    if vendedorcpf:
-        raise HTTPException(status_code=400, detail=f"Este CPF já está vinculado a um vendedor existente.")
-
-    form_data.id = uuid.uuid4()
-
-    endereco_id = None
-    if form_data.endereco:
-        endereco_data = form_data.endereco
-        novo_endereco = EnderecoModel(
-            id=uuid.uuid4(),
-            cep=endereco_data.cep,
-            rua=endereco_data.rua,
-            numero=endereco_data.numero,
-            bairro=endereco_data.bairro,
-            complemento=endereco_data.complemento,
-            cidade=endereco_data.cidade,
-            uf=endereco_data.uf
-        )
-        db.add(novo_endereco)
-        await db.flush()
-        endereco_id = novo_endereco.id
-
-
-    anexo_id = None
-    if form_data.foto:
-        novo_anexo = AnexoModel(
-            id=uuid.uuid4(),
-            base64=form_data.foto.base64,
-            image=form_data.foto.image,
-            descricao=form_data.foto.descricao,
-            nome=form_data.foto.nome,
-            tipo=form_data.foto.tipo,
-            created_by=uuid.UUID(user_id)
-        )
-        db.add(novo_anexo)
-        await db.flush()
-        anexo_id = novo_anexo.id
-
-
-    novo = VendedorModel(
-        id=form_data.id,
-        nome=form_data.nome,
-        cpf=form_data.cpf,
-        rg=form_data.rg,
-        telefone=form_data.telefone,
-        email=form_data.email,
-        ativo=True,
-        foto_id=anexo_id,
-        endereco_id=endereco_id,
-        created_by=uuid.UUID(user_id)
-    )
-
-    db.add(novo)
-
-    dados_antigos = None
-    dados_novos =  limpar_dict_para_json(form_data)
-
-    log = LogModel(
-        tabela_afetada="vendedores",
-        operacao="CREATE",
-        registro_id=form_data.id,
-        dados_antes=dados_antigos,
-        dados_depois=dados_novos,
-        usuario_id=uuid.UUID(user_id)
-    )
-
-    db.add(log)
-
-    await db.commit()
-    await db.refresh(novo)
-
-    return JSONResponse(
-        content={"detail": "Vendedor criado com sucesso"},
-        media_type="application/json; charset=utf-8"
-    )
 
 
 async def listar(
@@ -185,10 +92,11 @@ async def listar(
 
         anexo = None
         if vendedor.foto:
+            image_base64 = bytes_to_base64(vendedor.foto.base64)
             anexo = AnexoRequest(
                 id=vendedor.foto.id,
                 image=vendedor.foto.image,
-                base64=vendedor.foto.base64,
+                base64=image_base64,
                 descricao=vendedor.foto.descricao,
                 nome=vendedor.foto.nome,
                 tipo=vendedor.foto.tipo,
@@ -221,8 +129,6 @@ async def listar(
         "offset": offset,
         "data": vendedores_list
     }
-
-
 
 
 async def por_id(id: uuid.UUID,
@@ -261,10 +167,11 @@ async def por_id(id: uuid.UUID,
         vendedorFoto = resultFoto.scalar_one_or_none()
 
         if vendedorFoto:
+            image_base64 = bytes_to_base64(vendedorFoto.base64)
             foto = AnexoRequest(
                 id=vendedorFoto.id,
                 image=vendedorFoto.image,
-                base64=vendedorFoto.base64,
+                base64=image_base64,
                 descricao=vendedorFoto.descricao,
                 nome=vendedorFoto.nome,
                 tipo=vendedorFoto.tipo
@@ -289,6 +196,103 @@ async def por_id(id: uuid.UUID,
     )
 
     return vendedor_response
+
+
+async def criar(form_data: VendedorRequest,
+                     db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
+
+    querycpf = select(VendedorModel).where(VendedorModel.cpf == form_data.cpf)
+    resultcpf = await db.execute(querycpf)
+    vendedorcpf = resultcpf.scalar_one_or_none()
+
+    if form_data.nome is None:
+        raise HTTPException(status_code=400, detail=f"Campo nome é obrigatório.")
+
+    if form_data.email is None:
+        raise HTTPException(status_code=400, detail=f"Campo e-mail é obrigatório.")
+
+    if form_data.telefone is None:
+        raise HTTPException(status_code=400, detail=f"Campo telefone é obrigatório.")
+
+    if form_data.cpf is None:
+        raise HTTPException(status_code=400, detail=f"Campo CPD é obrigatório.")
+
+    if vendedorcpf:
+        raise HTTPException(status_code=400, detail=f"Este CPF já está vinculado a um vendedor existente.")
+
+    form_data.id = uuid.uuid4()
+
+    endereco_id = None
+    if form_data.endereco:
+        endereco_data = form_data.endereco
+        novo_endereco = EnderecoModel(
+            id=uuid.uuid4(),
+            cep=endereco_data.cep,
+            rua=endereco_data.rua,
+            numero=endereco_data.numero,
+            bairro=endereco_data.bairro,
+            complemento=endereco_data.complemento,
+            cidade=endereco_data.cidade,
+            uf=endereco_data.uf
+        )
+        db.add(novo_endereco)
+        await db.flush()
+        endereco_id = novo_endereco.id
+
+
+    anexo_id = None
+    if form_data.foto:
+        image_bytes = base64_to_bytes(form_data.foto.base64)
+        novo_anexo = AnexoModel(
+            id=uuid.uuid4(),
+            base64=image_bytes,
+            image=form_data.foto.image,
+            descricao=form_data.foto.descricao,
+            nome=form_data.foto.nome,
+            tipo=form_data.foto.tipo,
+            created_by=uuid.UUID(user_id)
+        )
+        db.add(novo_anexo)
+        await db.flush()
+        anexo_id = novo_anexo.id
+
+
+    novo = VendedorModel(
+        id=form_data.id,
+        nome=form_data.nome,
+        cpf=form_data.cpf,
+        rg=form_data.rg,
+        telefone=form_data.telefone,
+        email=form_data.email,
+        ativo=True,
+        foto_id=anexo_id,
+        endereco_id=endereco_id,
+        created_by=uuid.UUID(user_id)
+    )
+
+    db.add(novo)
+
+    dados_antigos = None
+    dados_novos =  limpar_dict_para_json(form_data)
+
+    log = LogModel(
+        tabela_afetada="vendedores",
+        operacao="CREATE",
+        registro_id=form_data.id,
+        dados_antes=dados_antigos,
+        dados_depois=dados_novos,
+        usuario_id=uuid.UUID(user_id)
+    )
+
+    db.add(log)
+
+    await db.commit()
+    await db.refresh(novo)
+
+    return JSONResponse(
+        content={"detail": "Vendedor criado com sucesso"},
+        media_type="application/json; charset=utf-8"
+    )
 
 
 async def atualizar(id: uuid.UUID, form_data: VendedorUpdate,
@@ -385,7 +389,8 @@ async def atualizar(id: uuid.UUID, form_data: VendedorUpdate,
         if foto_data_foto.image is not None:
             foto.image = foto_data_foto.image
         if foto_data_foto.base64 is not None:
-            foto.base64 = foto_data_foto.base64
+            image_bytes = base64_to_bytes(foto_data_foto.base64)
+            foto.base64 = image_bytes
         if foto_data_foto.descricao is not None:
             foto.descricao = foto_data_foto.descricao
         if foto_data_foto.nome is not None:
