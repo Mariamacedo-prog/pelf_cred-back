@@ -26,3 +26,4 @@ class VendedorModel(Base):
 
     endereco = relationship("EnderecoModel", back_populates="vendedor")
     foto = relationship("AnexoModel", back_populates="vendedor")
+    contrato = relationship("ContratoModel", back_populates="vendedor")

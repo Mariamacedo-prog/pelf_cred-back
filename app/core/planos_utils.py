@@ -10,6 +10,7 @@ from starlette.responses import JSONResponse
 from app.connection.database import get_db
 from app.core.auth_utils import verificar_token
 from app.core.log_utils import limpar_dict_para_json
+from app.models.ContratoModel import ContratoModel
 from app.models.LogModel import LogModel
 from app.models.PlanoModel import PlanoModel
 from sqlalchemy import func, and_
@@ -267,9 +268,25 @@ async def delete(id: UUID, db: AsyncSession = Depends(get_db), user_id: str = De
 
     dados_antigos = limpar_dict_para_json(plano)
 
+    message = ""
+
+    queryContrato = select(ContratoModel).where(
+        and_(
+            ContratoModel.plano_id == id,
+            ContratoModel.ativo == True
+        ))
+    resultContrato = await db.execute(queryContrato)
+    contrato = resultContrato.scalar_one_or_none()
+
     plano.ativo = False
-    plano.deleted_at = datetime.utcnow()
-    plano.deleted_by = uuid.UUID(user_id)
+
+    if contrato:
+        message = "Existe um contrato ativo para este plano. O plano será somente desabilitado."
+
+    if not contrato:
+        message = "Plano deletado com sucesso"
+        plano.deleted_at = datetime.utcnow()
+        plano.deleted_by = uuid.UUID(user_id)
 
     dados_novos = limpar_dict_para_json(plano)
 
@@ -286,8 +303,8 @@ async def delete(id: UUID, db: AsyncSession = Depends(get_db), user_id: str = De
     await db.commit()
 
     return JSONResponse(
-        content={"detail": "Plano deletado com sucesso"},
-        media_type="application/json; charset=utf-8"
+        content={"detail": message},
+        media_type= "application/json; charset=utf-8"
     )
 
 

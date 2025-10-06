@@ -15,7 +15,6 @@ class UserBase(BaseModel):
     telefone: Optional[str] = None
     ativo: Optional[bool] = None
     endereco_id: Optional[UUID] = None
-    token: Optional[str] = None
     created_by: Optional[UUID] = None
     updated_by: Optional[UUID] = None
     deleted_by: Optional[UUID] = None

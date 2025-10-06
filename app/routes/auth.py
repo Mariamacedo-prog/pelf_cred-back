@@ -33,14 +33,6 @@ async def login(
 
     new_token = gerar_token(user)
     refresh_token = gerar_token(user, timedelta(days=7))
-    stmt = (
-        update(UserModel)
-        .where(UserModel.cpf == form_data.login)
-        .values(token=refresh_token)
-    )
-
-    await db.execute(stmt)
-    await db.commit()
 
     jwt_token = LoginResponse(
         access_token=new_token,

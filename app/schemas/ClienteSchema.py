@@ -50,6 +50,17 @@ class ClienteResponse(BaseModel):
     deleted_by: Optional[UUID] = None
 
 
+class ClienteContratoResponse(BaseModel):
+    id: Optional[UUID] = Field(default_factory=uuid4)
+    nome: str
+    documento: str
+    email: EmailStr
+    telefone: Optional[str] = None
+    grupo_segmento: Optional[str] = None
+    endereco: EnderecoRequest = None
+    ativo: Optional[bool] = None
+
+
 class PaginatedClienteResponse(BaseModel):
     total_items: int
     total_paginas: int

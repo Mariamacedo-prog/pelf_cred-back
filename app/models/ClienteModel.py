@@ -24,3 +24,4 @@ class ClienteModel(Base):
     deleted_by = Column(UUID(as_uuid=True), index=True, nullable=True)
 
     endereco = relationship("EnderecoModel", back_populates="cliente")
+    contrato = relationship("ContratoModel", back_populates="cliente")

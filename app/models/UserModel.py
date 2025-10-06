@@ -17,7 +17,6 @@ class UserModel(Base):
     ativo = Column(Boolean, default=True)
     hashed_senha = Column(String)
     endereco_id = Column(UUID(as_uuid=True), ForeignKey("enderecos.id"), nullable=True)
-    token = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     created_by = Column(UUID(as_uuid=True), index=True, nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

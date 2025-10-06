@@ -11,9 +11,10 @@ class AnexoModel(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     base64 = Column(LargeBinary, nullable=True)
     image = Column(String, index=True, nullable=True)
-    descricao = Column(Text, index=True, nullable=True)
     nome = Column(String, index=True, nullable=True)
     tipo = Column(String, index=True, nullable=True)
+    responsavel = Column(String, index=True, nullable=True)
+    descricao = Column(Text, index=True, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     created_by = Column(UUID(as_uuid=True), index=True, nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -22,3 +23,5 @@ class AnexoModel(Base):
     deleted_by = Column(UUID(as_uuid=True), index=True, nullable=True)
 
     vendedor = relationship("VendedorModel", back_populates="foto")
+    contratos_como_cliente = relationship("ContratoModel",foreign_keys="[ContratoModel.cliente_assinatura_id]", back_populates="cliente_assinatura")
+    contratos_como_responsavel = relationship("ContratoModel",foreign_keys="[ContratoModel.responsavel_assinatura_id]",back_populates="responsavel_assinatura")

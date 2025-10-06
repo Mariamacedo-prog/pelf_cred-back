@@ -1,5 +1,6 @@
 import uuid
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy import Column, String, Boolean, DateTime, Text, Numeric, Integer
 from app.connection.base_class import Base
@@ -24,3 +25,5 @@ class PlanoModel(Base):
     updated_by = Column(UUID(as_uuid=True), index=True, nullable=True)
     deleted_at = Column(DateTime(timezone=True), nullable=True)
     deleted_by = Column(UUID(as_uuid=True), index=True, nullable=True)
+
+    contrato = relationship("ContratoModel", back_populates="plano")

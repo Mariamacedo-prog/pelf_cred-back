@@ -92,7 +92,7 @@ async def listar(
 
         anexo = None
         if vendedor.foto:
-            image_base64 = bytes_to_base64(vendedor.foto.base64)
+            image_base64 = bytes_to_base64(vendedor.foto.base64, vendedor.foto.tipo)
             anexo = AnexoRequest(
                 id=vendedor.foto.id,
                 image=vendedor.foto.image,
@@ -167,7 +167,7 @@ async def por_id(id: uuid.UUID,
         vendedorFoto = resultFoto.scalar_one_or_none()
 
         if vendedorFoto:
-            image_base64 = bytes_to_base64(vendedorFoto.base64)
+            image_base64 = bytes_to_base64(vendedorFoto.base64, vendedorFoto.tipo)
             foto = AnexoRequest(
                 id=vendedorFoto.id,
                 image=vendedorFoto.image,

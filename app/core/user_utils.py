@@ -63,8 +63,7 @@ async def criar_user(form_data: UserRequest,
         telefone=form_data.telefone,
         ativo=True,
         hashed_senha=hash_senha,
-        endereco_id=endereco_id,
-        token=access_token
+        endereco_id=endereco_id
     )
 
     db.add(novo_user)

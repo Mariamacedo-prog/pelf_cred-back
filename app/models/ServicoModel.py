@@ -1,7 +1,7 @@
 import uuid
-from sqlalchemy.dialects.postgresql import UUID, ARRAY
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
-from sqlalchemy import Column, String, Boolean, DateTime, Text, Numeric, Integer
+from sqlalchemy import Column, String, Boolean, DateTime, Text, Numeric
 from app.connection.base_class import Base
 
 class ServicoModel(Base):

@@ -14,6 +14,10 @@ from app.models.ServicoModel import ServicoModel
 from app.models.VendedorModel import VendedorModel
 from app.models.AnexoModel import AnexoModel
 
+from app.models.ParcelamentoModel import ParcelamentoModel
+from app.models.ContratoModel import ContratoModel
+from app.models.AssinaturaEvidenciaModel import AssinaturaEvidenciaModel
+
 load_dotenv()
 
 DATABASE_URL=os.getenv("DATABASE_URL")

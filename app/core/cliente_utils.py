@@ -112,8 +112,6 @@ async def listar(
 
     return page
 
-
-
 async def listar_por_id(id: uuid.UUID, cliente: ClienteResponse,
                       db: AsyncSession = Depends(get_db)):
     queryEndereco = select(EnderecoModel).where(EnderecoModel.id == cliente.endereco_id)

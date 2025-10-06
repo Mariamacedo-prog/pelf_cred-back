@@ -53,6 +53,17 @@ class VendedorResponse(BaseModel):
     updated_by: Optional[UUID] = None
     deleted_by: Optional[UUID] = None
 
+
+class VendedorContratoResponse(BaseModel):
+    id: Optional[UUID] = Field(default_factory=uuid4)
+    nome: str
+    cpf: str
+    email: EmailStr
+    telefone: str
+    rg: Optional[str] = None
+    ativo: Optional[bool] = None
+
+
 class PaginatedVendedorResponse(BaseModel):
     total_items: int
     total_paginas: int
