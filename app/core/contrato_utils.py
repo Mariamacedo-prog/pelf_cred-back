@@ -23,15 +23,17 @@ from app.models.ParcelamentoModel import ParcelamentoModel
 from app.models.PlanoModel import PlanoModel
 from sqlalchemy import func, and_, or_, cast, String
 
+from app.models.ServicoModel import ServicoModel
 from app.models.VendedorModel import VendedorModel
 from app.schemas.AnexoSchema import AnexoRequest
 from app.schemas.ClienteSchema import ClienteResponse, ClienteContratoResponse
-from app.schemas.ContratoSchema import ContratoRequest, ContratoResponse
+from app.schemas.ContratoSchema import ContratoRequest, ContratoResponse, ContratoResponseShort
 from app.schemas.EnderecoSchema import EnderecoRequest
 from app.schemas.ParcelamentoSchema import ParcelamentoResponse
-from app.schemas.PlanoSchema import PlanoBase, PlanoUpdate, PlanoRequest
+from app.schemas.PlanoSchema import PlanoBase, PlanoUpdate, PlanoRequest, PlanoServicoResponse
 from sqlalchemy.future import select
 
+from app.schemas.ServicoSchema import ServicoList
 from app.schemas.VendedorSchema import VendedorContratoResponse
 
 
@@ -353,29 +355,17 @@ async def listar(
                 servicos_vinculados=contrato.plano.servicos_vinculados
             )
 
-        response = ContratoResponse(
+        response = ContratoResponseShort(
             id=contrato.id,
             numero=contrato.numero,
-            nome=contrato.nome,
-            documento=contrato.documento,
             ativo=contrato.ativo,
             status_cobranca=contrato.status_cobranca,
             status_contrato=contrato.status_contrato,
-
             parcelamento=parcelamento,
-            cliente_assinatura=cliente_assinatura,
-            responsavel_assinatura=responsavel_assinatura,
-            anexos_list=anexo_list,
             plano=plano,
-            vendedor=vendedor,
             cliente=cliente,
-
-            created_by=contrato.created_by,
-            updated_by=contrato.updated_by,
-            deleted_by=contrato.deleted_by,
             created_at=contrato.created_at,
-            updated_at=contrato.updated_at,
-            deleted_at=contrato.deleted_at,
+            updated_at=contrato.updated_at
         )
         contratos_list.append(response)
 
@@ -387,6 +377,8 @@ async def listar(
         "offset": offset,
         "data": contratos_list
     }
+
+
 
 async def por_id(id: uuid.UUID,
                    db: AsyncSession = Depends(get_db)):
@@ -502,17 +494,37 @@ async def por_id(id: uuid.UUID,
             ativo=contrato.vendedor.ativo
         )
 
+    servicos_list = []
+    if contrato.plano.servicos_vinculados:
+        for servico in contrato.plano.servicos_vinculados:
+            query = select(ServicoModel).where(
+                and_(
+                    ServicoModel.id == servico
+                )
+            )
+            result = await db.execute(query)
+            item = result.scalar_one_or_none()
+
+            if item:
+                servicoItem = ServicoList(
+                    id=item.id,
+                    nome=item.nome,
+                    valor=item.valor
+                )
+                servicos_list.append(servicoItem)
+
     plano = None
     if contrato.plano:
-        plano = PlanoRequest(
+        plano = PlanoServicoResponse(
             id=contrato.plano.id,
             nome=contrato.plano.nome,
             descricao=contrato.plano.descricao,
             valor_mensal=contrato.plano.valor_mensal,
             numero_parcelas=contrato.plano.numero_parcelas,
+            ativo=contrato.plano.ativo,
             avista=contrato.plano.avista,
             periodo_vigencia=contrato.plano.periodo_vigencia,
-            servicos_vinculados=contrato.plano.servicos_vinculados
+            servicos_vinculados=servicos_list
         )
 
     response = ContratoResponse(
@@ -631,14 +643,16 @@ async def atualizar(id: uuid.UUID, form_data: PlanoUpdate,
                     anexo_existente.updated_by = uuid.UUID(user_id)
                     anexo_existente.updated_at = datetime.utcnow()
 
-                    db.merge(anexo_existente)
+                    await db.merge(anexo_existente)
 
                     anexos_novos_ids.add(anexo.id)
                     anexos_final_ids.append(anexo.id)
             else:
+                print("ADICIONOUUUUUUUUUUUUUUUUUUU")
+                novo_item_id = uuid.uuid4()
                 image_bytes = base64_to_bytes(anexo.base64)
                 novo_anexo = AnexoModel(
-                    id=uuid.uuid4(),
+                    id=novo_item_id,
                     base64=image_bytes,
                     image=anexo.image,
                     descricao=anexo.descricao,
@@ -648,7 +662,8 @@ async def atualizar(id: uuid.UUID, form_data: PlanoUpdate,
                 )
                 db.add(novo_anexo)
                 await db.flush()
-                anexos_final_ids.append(novo_anexo.id)
+                anexos_novos_ids.add(novo_item_id)
+                anexos_final_ids.append(novo_item_id)
 
     anexos_para_apagar = anexos_antigos_ids - anexos_novos_ids
     if anexos_para_apagar:
@@ -661,8 +676,9 @@ async def atualizar(id: uuid.UUID, form_data: PlanoUpdate,
         result_parcelamento = await db.execute(query_parcelamento_existente)
         parcelamento_existente = result_parcelamento.scalar_one_or_none()
 
-        parcelamento_id = form_data.parcelamento.id
+
         if parcelamento_existente:
+            parcelamento_id = form_data.parcelamento.id
             if parcelamento_existente.data_inicio is not None:
                 parcelamento_existente.data_inicio = form_data.parcelamento.data_inicio
             if parcelamento_existente.data_fim is not None:
@@ -690,7 +706,7 @@ async def atualizar(id: uuid.UUID, form_data: PlanoUpdate,
             parcelamento_existente.updated_by = uuid.UUID(user_id)
             parcelamento_existente.updated_at = datetime.utcnow()
 
-            db.merge(parcelamento_existente)
+            await db.merge(parcelamento_existente)
     else:
         novo_parcelamento_id = uuid.uuid4()
         novo_parcelamento = ParcelamentoModel(

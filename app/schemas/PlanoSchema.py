@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 from datetime import datetime
 
 from app.schemas.EnderecoSchema import EnderecoRequest, EnderecoUpdate
+from app.schemas.ServicoSchema import ServicoList
 
 
 class PlanoBase(BaseModel):
@@ -36,13 +37,18 @@ class PlanoRequest(BaseModel):
     servicos_vinculados: Optional[List[UUID]] = None
 
 
-class PaginatedPlanoResponse(BaseModel):
-    total_items: int
-    total_paginas: int
-    pagina_atual: int
-    items: int
-    offset: int
-    data: List[PlanoBase]
+
+class PlanoServicoResponse(BaseModel):
+    id: Optional[UUID] = Field(default_factory=uuid4)
+    nome: str
+    descricao: Optional[str] = None
+    valor_mensal: float
+    valor_total: Optional[float] = None
+    numero_parcelas: Optional[int] = None
+    ativo: bool
+    avista: Optional[bool] = None
+    periodo_vigencia: Optional[str] = None
+    servicos_vinculados:  Optional[List[ServicoList]] = None
 
 
 class PlanoUpdate(BaseModel):
@@ -56,3 +62,12 @@ class PlanoUpdate(BaseModel):
     avista: Optional[bool] = None
     periodo_vigencia: Optional[str] = None
     servicos_vinculados: List[UUID] = None
+
+
+class PaginatedPlanoResponse(BaseModel):
+        total_items: int
+        total_paginas: int
+        pagina_atual: int
+        items: int
+        offset: int
+        data: List[PlanoServicoResponse]

@@ -14,8 +14,13 @@ from app.models.ContratoModel import ContratoModel
 from app.models.LogModel import LogModel
 from app.models.PlanoModel import PlanoModel
 from sqlalchemy import func, and_
-from app.schemas.PlanoSchema import PlanoBase, PlanoRequest, PlanoUpdate
+
+from app.models.ServicoModel import ServicoModel
+from app.schemas.PlanoSchema import PlanoBase, PlanoRequest, PlanoUpdate, PlanoServicoResponse
 from sqlalchemy.future import select
+
+from app.schemas.ServicoSchema import ServicoList
+
 
 async def listar(
     pagina: int = Query(1, ge=1),
@@ -47,7 +52,26 @@ async def listar(
 
     plano_list = []
     for plano in planos:
-        plano_response = PlanoBase(
+        servicos_list = []
+        if plano.servicos_vinculados:
+            for servico in plano.servicos_vinculados:
+                query = select(ServicoModel).where(
+                    and_(
+                        ServicoModel.id == servico
+                    )
+                )
+                result = await db.execute(query)
+                item = result.scalar_one_or_none()
+
+                if item:
+                    servicoItem = ServicoList(
+                        id=item.id,
+                        nome=item.nome,
+                        valor=item.valor
+                    )
+                    servicos_list.append(servicoItem)
+
+        plano_response = PlanoServicoResponse(
             id=plano.id,
             nome=plano.nome,
             descricao=plano.descricao,
@@ -57,13 +81,7 @@ async def listar(
             ativo=plano.ativo,
             avista=plano.avista,
             periodo_vigencia=plano.periodo_vigencia,
-            servicos_vinculados=plano.servicos_vinculados,
-            created_by=plano.created_by,
-            updated_by=plano.updated_by,
-            deleted_by=plano.deleted_by,
-            created_at=plano.created_at,
-            updated_at=plano.updated_at,
-            deleted_at=plano.deleted_at
+            servicos_vinculados=servicos_list
         )
         plano_list.append(plano_response)
 

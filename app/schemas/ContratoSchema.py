@@ -6,7 +6,7 @@ from datetime import datetime
 from app.schemas.AnexoSchema import AnexoRequest
 from app.schemas.ClienteSchema import ClienteResponse, ClienteContratoResponse
 from app.schemas.ParcelamentoSchema import ParcelamentoRequest, ParcelamentoResponse, ParcelamentoUpdate
-from app.schemas.PlanoSchema import PlanoRequest
+from app.schemas.PlanoSchema import PlanoRequest, PlanoServicoResponse
 from app.schemas.VendedorSchema import VendedorResponse, VendedorContratoResponse
 
 
@@ -59,7 +59,7 @@ class ContratoResponse(BaseModel):
     numero: Optional[int] = None
     cliente: Optional[ClienteContratoResponse] = None
     vendedor: Optional[VendedorContratoResponse] = None
-    plano: Optional[PlanoRequest] = None
+    plano: Optional[PlanoServicoResponse] = None
     nome: Optional[str] = None
     documento: Optional[str] = None
     status_cobranca: Optional[str] = None
@@ -77,13 +77,26 @@ class ContratoResponse(BaseModel):
     deleted_by: Optional[UUID] = None
 
 
+class ContratoResponseShort(BaseModel):
+    id: Optional[UUID] = Field(default_factory=uuid4)
+    numero: Optional[int] = None
+    cliente: Optional[ClienteContratoResponse] = None
+    plano: Optional[PlanoRequest] = None
+    status_cobranca: Optional[str] = None
+    status_contrato: Optional[str] = None
+    ativo: Optional[bool] = None
+    parcelamento: Optional[ParcelamentoResponse] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
 class PaginateContratoResponse(BaseModel):
     total_items: int
     total_paginas: int
     pagina_atual: int
     items: int
     offset: int
-    data: List[ContratoResponse]
+    data: List[ContratoResponseShort]
 
 
 class ContratoUpdate(BaseModel):
