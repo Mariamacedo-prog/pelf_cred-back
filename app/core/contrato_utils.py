@@ -2,8 +2,10 @@ import uuid
 from typing import Optional
 from uuid import UUID
 from fastapi import Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
+import locale
 
 from sqlalchemy.orm import joinedload
 from starlette import status
@@ -18,6 +20,7 @@ from app.core.log_utils import limpar_dict_para_json
 from app.models.ContratoModel import ContratoModel
 from app.models.ClienteModel import ClienteModel
 from app.models.AnexoModel import AnexoModel
+from app.models.EnderecoModel import EnderecoModel
 from app.models.LogModel import LogModel
 from app.models.ParcelamentoModel import ParcelamentoModel
 from app.models.PlanoModel import PlanoModel
@@ -26,15 +29,27 @@ from sqlalchemy import func, and_, or_, cast, String
 from app.models.ServicoModel import ServicoModel
 from app.models.VendedorModel import VendedorModel
 from app.schemas.AnexoSchema import AnexoRequest
-from app.schemas.ClienteSchema import ClienteResponse, ClienteContratoResponse
+from app.schemas.ClienteSchema import  ClienteContratoResponse
 from app.schemas.ContratoSchema import ContratoRequest, ContratoResponse, ContratoResponseShort
 from app.schemas.EnderecoSchema import EnderecoRequest
 from app.schemas.ParcelamentoSchema import ParcelamentoResponse
-from app.schemas.PlanoSchema import PlanoBase, PlanoUpdate, PlanoRequest, PlanoServicoResponse
+from app.schemas.PlanoSchema import PlanoUpdate, PlanoRequest, PlanoServicoResponse
 from sqlalchemy.future import select
 
 from app.schemas.ServicoSchema import ServicoList
 from app.schemas.VendedorSchema import VendedorContratoResponse
+from datetime import date
+from dateutil.relativedelta import relativedelta
+
+from io import BytesIO
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from num2words import num2words
+from docx import Document
+from docx.shared import Pt
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 
 async def criar(form_data: ContratoRequest,
@@ -193,8 +208,6 @@ async def criar(form_data: ContratoRequest,
         content={"detail": "Contrato criado com sucesso"},
         media_type="application/json; charset=utf-8"
     )
-
-
 
 async def listar(
     pagina: int = Query(1, ge=1),
@@ -472,6 +485,27 @@ async def por_id(id: uuid.UUID,
 
     cliente = None
     if contrato.cliente:
+        endereco_cliente = None
+        query = select(EnderecoModel).where(
+            and_(
+                EnderecoModel.id == contrato.cliente.endereco_id,
+            )
+        )
+
+        result = await db.execute(query)
+        item = result.scalar_one_or_none()
+        if item:
+            endereco_cliente = EnderecoRequest(
+                id=item.id,
+                cep=item.cep,
+                rua=item.rua,
+                numero=item.numero,
+                bairro=item.bairro,
+                complemento=item.complemento,
+                cidade=item.cidade,
+                uf=item.uf,
+            )
+
         cliente = ClienteContratoResponse(
             id=contrato.cliente.id,
             nome=contrato.cliente.nome,
@@ -479,7 +513,8 @@ async def por_id(id: uuid.UUID,
             email=contrato.cliente.email,
             telefone=contrato.cliente.telefone,
             grupo_segmento=contrato.cliente.grupo_segmento,
-            ativo=contrato.cliente.ativo
+            ativo=contrato.cliente.ativo,
+            endereco=endereco_cliente
         )
 
     vendedor = None
@@ -551,7 +586,6 @@ async def por_id(id: uuid.UUID,
     )
 
     return response
-
 
 
 async def atualizar(id: uuid.UUID, form_data: PlanoUpdate,
@@ -648,7 +682,6 @@ async def atualizar(id: uuid.UUID, form_data: PlanoUpdate,
                     anexos_novos_ids.add(anexo.id)
                     anexos_final_ids.append(anexo.id)
             else:
-                print("ADICIONOUUUUUUUUUUUUUUUUUUU")
                 novo_item_id = uuid.uuid4()
                 image_bytes = base64_to_bytes(anexo.base64)
                 novo_anexo = AnexoModel(
@@ -800,5 +833,950 @@ async def delete_item(id: UUID, db: AsyncSession = Depends(get_db), user_id: str
     )
 
 
+def valor_por_extenso(valor):
+    reais = int(valor)
+    centavos = int(round((valor - reais) * 100))
+    extenso_reais = num2words(reais, lang='pt_BR')
+    if centavos > 0:
+        extenso_centavos = num2words(centavos, lang='pt_BR')
+        return f"{extenso_reais} reais e {extenso_centavos} centavos"
+    else:
+        return f"{extenso_reais} reais"
+
+def safe_get(obj, attr, default=""):
+    return getattr(obj, attr, default) if obj else default
+
+def get_data_format(data_inicio_raw):
+    data_inicio = None
+    if isinstance(data_inicio_raw, str):
+        data_inicio = datetime.fromisoformat(data_inicio_raw.replace("Z", "+00:00"))
+    else:
+        data_inicio = data_inicio_raw
+
+    return data_inicio
+
+def contrato_pdf_pf(conteudo, styles, res):
+    conteudo.append(Paragraph("CONTRATO DE PRESTAÇÃO DE SERVIÇOS FINANCEIROS PARA PESSOA FISICAS", styles['Titulo']))
+    conteudo.append(Paragraph(
+        f"Pelo presente instrumento, M D LIMA CONSULTORIA EIRELI,"
+        f" inscrita no CNPJ:41.649.122/0001-90,"
+        f" com sede social a Rua Doze de Outubro, nº 385 conjunto 23 – Lapa – CEP: 05073-001 – São Paulo – SP,"
+        f" neste ato representado"
+        f" MAYARA DANTAS LIMA, brasileira, solteira,"
+        f" empresária, portadora do"
+        f" CPF sob o nº. 106.592.994-37,"
+        f" RG inscrito sob nº.59.879.242-9 SSP/SP,"
+        f" doravante denominada MUTUANTE,"
+        f" {safe_get(res.cliente, 'nome')}, telefone nº {safe_get(res.cliente, 'telefone')},"
+        f" e-mail: {safe_get(res.cliente, 'email')} ,"
+        f" inscrito sob o documento de nº {safe_get(res.cliente, 'documento')}, residente e domiciliado na "
+        f" {safe_get(res.cliente.endereco, 'rua')}, nº {safe_get(res.cliente.endereco, 'numero')} {safe_get(res.cliente.endereco, 'complemento')},"
+        f" {safe_get(res.cliente.endereco, 'bairro')}, CEP: {safe_get(res.cliente.endereco, 'cep')} e"
+        f" {safe_get(res.cliente.endereco, 'cidade')}/{safe_get(res.cliente.endereco, 'uf')},"
+        f" doravante denominado(a) MUTUÁRIO(A),"
+        f" o presente mútuo, contrato nº {safe_get(res, 'numero')} mediante as seguintes cláusulas:",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph("<b>CLÁUSULA PRIMEIRA - DO OBJETO</b>", styles['Subtitulo']))
+
+    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+
+    valor_total = safe_get(res.parcelamento, 'valor_total')
+    valor_total_formatado = locale.currency(valor_total, grouping=True)
+    conteudo.append(Paragraph(
+        f"1.1. Por meio do presente instrumento, o(a) MUTUANTE empresta ao(à) MUTUÁRIO (A), direta e pessoalmente, a quantia de {valor_total_formatado}"
+        f" ({valor_por_extenso(valor_total)}). ",
+        styles['Corpo']
+    ))
+
+    if res.parcelamento.qtd_parcela > 1:
+        conteudo.append(Paragraph(
+            f"1.2. A quantia será repassada ao(à) MUTUÁRIO(A) mediante, por meio parcelado em {safe_get(res.parcelamento, 'qtd_parcela')}x.",
+            styles['Corpo']
+        ))
+    else:
+        conteudo.append(Paragraph(
+            f"1.2. A quantia será repassada ao(à) MUTUÁRIO(A) mediante, por meio uma única parcela.",
+            styles['Corpo']
+        ))
+
+    conteudo.append(Paragraph(
+        f"1.3. O(A) MUTUANTE entregará a quantia ao(à) MUTUÁRIO(A) no ato de assinatura deste instrumento OU em"
+        f" {get_data_format(res.parcelamento.data_inicio).strftime("%d/%m/%Y")}. ",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph("<b>CLÁUSULA SEGUNDA - DA DESTINAÇÃO DO EMPRÉSTIMO</b>", styles['Subtitulo']))
+    conteudo.append(Paragraph(
+        f"O(A) MUTUÁRIO(A) poderá fazer livre uso da quantia emprestada, desde que não seja para fins econômicos, ou seja, fica vedada a alienação do valor.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph("<b>CLÁUSULA TERCEIRA - DO PAGAMENTO</b>", styles['Subtitulo']))
+    conteudo.append(Paragraph(
+        f"3.1.1 O(a) MUTUÁRIO(A) se compromete a restituir ao(à) MUTUANTE a quantia mutuada especificada na cláusula primeira, da seguinte forma:",
+        styles['Corpo']
+    ))
+
+    if res.parcelamento.qtd_parcela > 1:
+        conteudo.append(Paragraph(
+            f"Parcelado em {safe_get(res.parcelamento, 'qtd_parcela')}x",
+            styles['Corpo']
+        ))
+        datas_parcelas = []
+
+        data_inicio = get_data_format(res.parcelamento.data_inicio)
+
+        qtd_parcelas = int(safe_get(res.parcelamento, 'qtd_parcela'))
+
+        for i in range(qtd_parcelas):
+            data_parcela = data_inicio + relativedelta(months=i)
+            datas_parcelas.append({
+                "parcela": i + 1,
+                "dia": data_parcela.strftime("%d/%m/%Y")
+            })
+
+        for data in datas_parcelas:
+            conteudo.append(Paragraph(
+                f"•	{data['parcela']}ª {data['dia']} ",
+                styles['Corpo']
+            ))
+    else:
+        conteudo.append(Paragraph(
+            f"Parcela única",
+            styles['Corpo']
+        ))
+
+        conteudo.append(Paragraph(
+            f"•	1ª {get_data_format(res.parcelamento.data_inicio).strftime("%d/%m/%Y")} ",
+            styles['Corpo']
+        ))
+
+    conteudo.append(Paragraph(
+        "3.1.2. O empréstimo é realizado a título oneroso e haverá, portanto, incidência de juros compensatórios ou de "
+        "correção monetário sobre o valor mutuado.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph(
+        f"3.1.3. O(A) MUTUÁRIO(A) se compromete a restituir o valor mutuado ao(à) MUTUANTE acrescido de juros de {safe_get(res.parcelamento, 'taxa_juros')}% "
+        f"(teto máximo, podendo ser modificado) ao mês, aplicadas sobre a quantia total emprestada, além de correção monetária "
+        f"calculada com base na variação do IGP-M do período.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph(
+        "3.1.4. O atraso, bem como, o não pagamento fará com que o(a) MUTUANTE incorra em mora, sujeitando-se desta forma à "
+        "cobranças extrajudiciais, bem como realização de protestos e o que se fizerem necessárias, com incidência de juros de 1% a.m. e de multa "
+        "de 10% calculados sobre o mês de atraso.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph(
+        "3.1.5 O MUTUÁRIO poderá amortizar ou liquidar a dívida do empréstimo, antes do vencimento.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph(
+        "3.1.6. Eventual aceitação do(a) MUTUANTE(A) em receber parcelas pagas intempestivamente ou pelo não "
+        "cumprimento de obrigações contratuais, a seu critério, não importará em novação, perdão ou alteração contratual, "
+        "mas mera liberalidade do (a) MUTUÁRIO(A), permanecendo inalteradas as cláusulas deste contrato.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph(
+        "3.1.7. O valor do débito, objeto deste contrato, ficará representado por uma Nota Promissória, emitida pelo MUTUANTE a favor do "
+        "MUTUÁRIO, com vencimento à vista, avalizada pelo INTERVENIENTE, acima qualificado.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph(
+        "3.1.8. O INTERVENIENTE, que é o avalista da supramencionada Nota Promissória, assinará este "
+        "contrato também na qualidade de devedor solidário, no que atina ao pagamento da dívida contraída em razão deste instrumento.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph(
+        "3.1.9 Se houver inadimplemento por parte do MUTUÁRIO(A), o MUTUANTE ficará autorizado a protestar ou executar a Nota Promissória, "
+        "pelo valor do saldo devedor, apurado na época, e a executar a garantia real.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph(
+        "PARAGRAFO ÚNICO - o MUTUÁRIO(A) desde já, autoriza que a(s) cobrança(s) seja(m) realizada em seu endereço residencial/comercial, "
+        "desde que sejam respeitados os horários noturnos (que compreendem das 19:00hs ás 06:00 hs), ou aquele que o DEVEDOR indicar, "
+        "inclusive aos finais de semana e feriados.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph("<b>CLÁUSULA QUARTA - DAS OBRIGAÇÕES</b>", styles['Subtitulo']))
+
+    conteudo.append(Paragraph(
+        "4.1. São obrigações do(a) MUTUÁRIO(a):",
+        styles['Corpo']
+    ))
+    conteudo.append(Paragraph(
+        "•	Efetuar o pagamento pontualmente, conforme as datas e os meios fixados neste instrumento;",
+        styles['Corpo']
+    ))
+    conteudo.append(Paragraph(
+        "•	Efetuar o pagamento pontualmente, conforme as datas e os meios fixados neste instrumento;",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph(
+        "4.2. São obrigações do (a) MUTUANTE (A):",
+        styles['Corpo']
+    ))
+    conteudo.append(Paragraph(
+        "•	Receber o pagamento da dívida, nos termos estipulados neste termo;",
+        styles['Corpo']
+    ))
+    conteudo.append(Paragraph(
+        "•	Entregar recibo de quitação da dívida ao MUTUÁRIO(A), quando finalizado todo o pagamento previsto.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph("<b>CLÁUSULA QUINTA - DA CESSÃO E TRANSFERÊNCIA</b>", styles['Subtitulo']))
+
+    conteudo.append(Paragraph(
+        "5.1. Fica vedada a cessão e transferência do presente contrato, seja a que título for, sem a expressa "
+        "concordância do MUTUANTE, havendo concordância, será realizado um novo contrato em nome do novo MUTUÁRIO.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph("<b>CLÁUSULA SEXTA - DA SUCESSÃO</b>", styles['Subtitulo']))
+    conteudo.append(Paragraph(
+        "6.1 Todas as obrigações assumidas neste instrumento são irrevogáveis e irretratáveis, o qual as partes obrigam-se "
+        "a cumpri-lo, a qualquer título, e, em caso de óbito ou extinção de alguma das partes, serão transferidas a seus "
+        "herdeiros ou sucessores, mediante anuência dos herdeiros.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph("<b>CLÁUSULA SETIMA - DA VIGÊNCIA</b>", styles['Subtitulo']))
+    conteudo.append(Paragraph(
+        "7.1. O presente contrato passa a vigorar entre as partes a partir da assinatura dele.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph("<b>CLÁUSULA OITAVA - DO FORO</b>", styles['Subtitulo']))
+    conteudo.append(Paragraph(
+        "8.1. As partes contratantes elegem o foro da cidade de São Paulo/SP para dirimir quaisquer dúvidas "
+        "relativas ao cumprimento deste instrumento, não superadas pela mediação administrativa.",
+        styles['Corpo']
+    ))
+    conteudo.append(Paragraph(
+        "E, por estarem justos e combinados, MUTUANTE(A) e MUTUÁRIO(A) celebram e assinam o presente instrumento, "
+        "em 2 (duas) vias de igual teor e forma, na presença das testemunhas, abaixo nomeadas e indicadas, que também "
+        "o subscrevem, para que surta seus efeitos jurídicos.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Spacer(1, 40))
+    conteudo.append(Paragraph(f"São Paulo, {date.today().strftime('%d/%m/%Y')}", styles['Corpo']))
+
+    assinaturas = [
+        ["MUTUÁRIO", "MUTUANTE", "INTERVENIENTE"],
+        ["__________________________", "__________________________", "__________________________"],
+        [safe_get(res.cliente, 'nome'), "M D LIMA CONSULTORIA EIRELI ", "INTERVENIENTE"],
+        [safe_get(res.cliente, 'documento'), "CNPJ: 41.649.122/0001-90 ", "INTERVENIENTE"]
+    ]
+    tabela = Table(assinaturas, colWidths=[250, 250])
+    tabela.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('TOPPADDING', (0, 0), (-1, -1), 20),
+    ]))
+    conteudo.append(tabela)
+
+    return conteudo
+
+def contrato_pdf_pj(conteudo, styles, res):
+    conteudo.append(Paragraph("CONTRATO DE PRESTAÇÃO DE SERVIÇOS FINANCEIROS PARA PESSOA JURÍDICA", styles['Titulo']))
+    conteudo.append(Paragraph(
+        f"Pelo presente instrumento, M D LIMA CONSULTORIA EIRELI,"
+        f" inscrita no CNPJ:41.649.122/0001-90,"
+        f" com sede social a Rua Doze de Outubro, nº 385 conjunto 23 – Lapa – CEP: 05073-001 – São Paulo – SP,"
+        f" neste ato representado"
+        f" MAYARA DANTAS LIMA, brasileira, solteira,"
+        f" empresária, portadora do"
+        f" CPF sob o nº. 106.592.994-37,"
+        f" RG inscrito sob nº.59.879.242-9 SSP/SP,"
+        f" doravante denominada MUTUANTE,"
+        f" {safe_get(res.cliente, 'nome')},inscrito no CNPJ: {safe_get(res.cliente, 'documento')},"
+        f" telefone nº {safe_get(res.cliente, 'telefone')},"
+        f" e-mail: {safe_get(res.cliente, 'email')}, residente e domiciliado na "
+        f" com sede social a Rua: "
+        f" {safe_get(res.cliente.endereco, 'rua')}, nº {safe_get(res.cliente.endereco, 'numero')} {safe_get(res.cliente.endereco, 'complemento')},"
+        f" {safe_get(res.cliente.endereco, 'bairro')}, CEP: {safe_get(res.cliente.endereco, 'cep')} e"
+        f" {safe_get(res.cliente.endereco, 'cidade')}/{safe_get(res.cliente.endereco, 'uf')},"
+        f" doravante denominado(a) MUTUÁRIO(A),"
+        f" o presente mútuo, contrato nº {safe_get(res, 'numero')} mediante as seguintes cláusulas:",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph("<b>CLÁUSULA PRIMEIRA - DO OBJETO</b>", styles['Subtitulo']))
+
+    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')  # define para português do Brasil
+
+    valor_total = safe_get(res.parcelamento, 'valor_total')
+    valor_total_formatado = locale.currency(valor_total, grouping=True)
+    conteudo.append(Paragraph(
+        f"1.1. Por meio do presente instrumento, o(a) MUTUANTE empresta ao(à) MUTUÁRIO (A), direta e pessoalmente, a quantia de {valor_total_formatado}"
+        f" ({valor_por_extenso(valor_total)}). ",
+        styles['Corpo']
+    ))
+
+    if res.parcelamento.qtd_parcela > 1:
+        conteudo.append(Paragraph(
+            f"1.2. A quantia será repassada ao(à) MUTUÁRIO(A) mediante, por meio parcelado em {safe_get(res.parcelamento, 'qtd_parcela')}x.",
+            styles['Corpo']
+        ))
+    else:
+        conteudo.append(Paragraph(
+            f"1.2. A quantia será repassada ao(à) MUTUÁRIO(A) mediante, por meio uma única parcela.",
+            styles['Corpo']
+        ))
+
+    conteudo.append(Paragraph(
+        f"1.3. O(A) MUTUANTE entregará a quantia ao(à) MUTUÁRIO(A) no ato de assinatura deste instrumento OU em"
+        f" {get_data_format(res.parcelamento.data_inicio).strftime("%d/%m/%Y")}. ",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph("<b>CLÁUSULA SEGUNDA - DA DESTINAÇÃO DO EMPRÉSTIMO</b>", styles['Subtitulo']))
+    conteudo.append(Paragraph(
+        f"O(A) MUTUÁRIO(A) poderá fazer livre uso da quantia emprestada, desde que não seja para fins econômicos, ou seja, fica vedada a alienação do valor.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph("<b>CLÁUSULA TERCEIRA - DO PAGAMENTO</b>", styles['Subtitulo']))
+    conteudo.append(Paragraph(
+        f"3.1.1 O(a) MUTUÁRIO(A) se compromete a restituir ao(à) MUTUANTE a quantia mutuada especificada na cláusula primeira, da seguinte forma:",
+        styles['Corpo']
+    ))
+
+    if res.parcelamento.qtd_parcela > 1:
+        conteudo.append(Paragraph(
+            f"Parcelado em {safe_get(res.parcelamento, 'qtd_parcela')}x",
+            styles['Corpo']
+        ))
+        datas_parcelas = []
+
+        data_inicio = get_data_format(res.parcelamento.data_inicio)
+
+        qtd_parcelas = int(safe_get(res.parcelamento, 'qtd_parcela'))
+
+        for i in range(qtd_parcelas):
+            data_parcela = data_inicio + relativedelta(months=i)
+            datas_parcelas.append({
+                "parcela": i + 1,
+                "dia": data_parcela.strftime("%d/%m/%Y")
+            })
+
+        for data in datas_parcelas:
+            conteudo.append(Paragraph(
+                f"•	{data['parcela']}ª {data['dia']} ",
+                styles['Corpo']
+            ))
+    else:
+        conteudo.append(Paragraph(
+            f"Parcela única",
+            styles['Corpo']
+        ))
+
+        conteudo.append(Paragraph(
+            f"•	1ª {get_data_format(res.parcelamento.data_inicio).strftime("%d/%m/%Y")} ",
+            styles['Corpo']
+        ))
+
+    conteudo.append(Paragraph(
+        "3.1.2. O empréstimo é realizado a título oneroso e haverá, portanto, incidência de juros compensatórios ou de "
+        "correção monetário sobre o valor mutuado.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph(
+        f"3.1.3. O(A) MUTUÁRIO(A) se compromete a restituir o valor mutuado ao(à) MUTUANTE acrescido de juros de {safe_get(res.parcelamento, 'taxa_juros')}% "
+        f"(teto máximo, podendo ser modificado) ao mês, aplicadas sobre a quantia total emprestada, além de correção monetária "
+        f"calculada com base na variação do IGP-M do período.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph(
+        "3.1.4. O atraso, bem como, o não pagamento fará com que o(a) MUTUANTE incorra em mora, sujeitando-se desta forma à "
+        "cobranças extrajudiciais, bem como realização de protestos e o que se fizerem necessárias, com incidência de juros de 1% a.m. e de multa "
+        "de 10% calculados sobre o mês de atraso.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph(
+        "3.1.5 O MUTUÁRIO poderá amortizar ou liquidar a dívida do empréstimo, antes do vencimento.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph(
+        "3.1.6. Eventual aceitação do(a) MUTUANTE(A) em receber parcelas pagas intempestivamente ou pelo não "
+        "cumprimento de obrigações contratuais, a seu critério, não importará em novação, perdão ou alteração contratual, "
+        "mas mera liberalidade do (a) MUTUÁRIO(A), permanecendo inalteradas as cláusulas deste contrato.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph(
+        "3.1.7. O valor do débito, objeto deste contrato, ficará representado por uma Nota Promissória, emitida pelo MUTUANTE a favor do "
+        "MUTUÁRIO, com vencimento à vista, avalizada pelo INTERVENIENTE, acima qualificado.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph(
+        "3.1.8. O INTERVENIENTE, que é o avalista da supramencionada Nota Promissória, assinará este "
+        "contrato também na qualidade de devedor solidário, no que atina ao pagamento da dívida contraída em razão deste instrumento.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph(
+        "3.1.9 Se houver inadimplemento por parte do MUTUÁRIO(A), o MUTUANTE ficará autorizado a protestar ou executar a Nota Promissória, "
+        "pelo valor do saldo devedor, apurado na época, e a executar a garantia real.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph(
+        "PARAGRAFO ÚNICO - o MUTUÁRIO(A) desde já, autoriza que a(s) cobrança(s) seja(m) realizada em seu endereço residencial/comercial, "
+        "desde que sejam respeitados os horários noturnos (que compreendem das 19:00hs ás 06:00 hs), ou aquele que o DEVEDOR indicar, "
+        "inclusive aos finais de semana e feriados.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph("<b>CLÁUSULA QUARTA - DAS OBRIGAÇÕES</b>", styles['Subtitulo']))
+
+    conteudo.append(Paragraph(
+        "4.1. São obrigações do(a) MUTUÁRIO(a):",
+        styles['Corpo']
+    ))
+    conteudo.append(Paragraph(
+        "•	Efetuar o pagamento pontualmente, conforme as datas e os meios fixados neste instrumento;",
+        styles['Corpo']
+    ))
+    conteudo.append(Paragraph(
+        "•	Efetuar o pagamento pontualmente, conforme as datas e os meios fixados neste instrumento;",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph(
+        "4.2. São obrigações do (a) MUTUANTE (A):",
+        styles['Corpo']
+    ))
+    conteudo.append(Paragraph(
+        "•	Receber o pagamento da dívida, nos termos estipulados neste termo;",
+        styles['Corpo']
+    ))
+    conteudo.append(Paragraph(
+        "•	Entregar recibo de quitação da dívida ao MUTUÁRIO(A), quando finalizado todo o pagamento previsto.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph("<b>CLÁUSULA QUINTA - DA CESSÃO E TRANSFERÊNCIA</b>", styles['Subtitulo']))
+
+    conteudo.append(Paragraph(
+        "5.1. Fica vedada a cessão e transferência do presente contrato, seja a que título for, sem a expressa "
+        "concordância do MUTUANTE, havendo concordância, será realizado um novo contrato em nome do novo MUTUÁRIO.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph("<b>CLÁUSULA SEXTA - DA SUCESSÃO</b>", styles['Subtitulo']))
+    conteudo.append(Paragraph(
+        "6.1 Todas as obrigações assumidas neste instrumento são irrevogáveis e irretratáveis, o qual as partes obrigam-se "
+        "a cumpri-lo, a qualquer título, e, em caso de óbito ou extinção de alguma das partes, serão transferidas a seus "
+        "herdeiros ou sucessores, mediante anuência dos herdeiros.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph("<b>CLÁUSULA SETIMA - DA VIGÊNCIA</b>", styles['Subtitulo']))
+    conteudo.append(Paragraph(
+        "7.1. O presente contrato passa a vigorar entre as partes a partir da assinatura dele.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Paragraph("<b>CLÁUSULA OITAVA - DO FORO</b>", styles['Subtitulo']))
+    conteudo.append(Paragraph(
+        "8.1. As partes contratantes elegem o foro da cidade de São Paulo/SP para dirimir quaisquer dúvidas "
+        "relativas ao cumprimento deste instrumento, não superadas pela mediação administrativa.",
+        styles['Corpo']
+    ))
+    conteudo.append(Paragraph(
+        "E, por estarem justos e combinados, MUTUANTE(A) e MUTUÁRIO(A) celebram e assinam o presente instrumento, "
+        "em 2 (duas) vias de igual teor e forma, na presença das testemunhas, abaixo nomeadas e indicadas, que também "
+        "o subscrevem, para que surta seus efeitos jurídicos.",
+        styles['Corpo']
+    ))
+
+    conteudo.append(Spacer(1, 40))
+    conteudo.append(Paragraph(f"São Paulo, {date.today().strftime('%d/%m/%Y')}", styles['Corpo']))
+
+    assinaturas = [
+        ["MUTUÁRIO", "MUTUANTE", "INTERVENIENTE"],
+        ["__________________________", "__________________________", "__________________________"],
+        [safe_get(res.cliente, 'nome'), "M D LIMA CONSULTORIA EIRELI ", "INTERVENIENTE"],
+        [safe_get(res.cliente, 'documento'), "CNPJ: 41.649.122/0001-90 ", "INTERVENIENTE"]
+    ]
+    tabela = Table(assinaturas, colWidths=[250, 250])
+    tabela.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('TOPPADDING', (0, 0), (-1, -1), 20),
+    ]))
+    conteudo.append(tabela)
+
+    return conteudo
+
+async def gerar_contrato_pdf(id: UUID, db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
+    res = await por_id(id, db)
+
+    if not res:
+        raise HTTPException(status_code=400, detail="Contrato não localizado na base de dados.")
+
+    buffer = BytesIO()
+
+    pdf = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=40, leftMargin=40,
+        topMargin=60, bottomMargin=60
+    )
+
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name='Titulo',
+                              fontSize=20,
+                              leading=24,
+                              alignment=1,
+                              textColor=colors.HexColor("#003366"),
+                              spaceAfter=20))
+    styles.add(ParagraphStyle(name='Subtitulo',
+                              fontSize=14,
+                              leading=18,
+                              textColor=colors.HexColor("#005599"),
+                              spaceAfter=10))
+    styles.add(ParagraphStyle(name='Corpo',
+                              fontSize=12,
+                              leading=16,
+                              alignment=4,
+                              spaceAfter=10))
+
+    conteudo = []
+
+    doc = ''.join(filter(str.isdigit, str(res.cliente.documento)))
+
+    if len(doc) == 11:
+        conteudo = contrato_pdf_pf(conteudo, styles, res)
+    else:
+        conteudo = contrato_pdf_pj(conteudo, styles, res)
+
+    pdf.build(conteudo)
+    buffer.seek(0)
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=contrato.pdf"}
+    )
 
 
+def contrato_word_pf(doc, res):
+    doc.add_paragraph(
+        f"Pelo presente instrumento, M D LIMA CONSULTORIA EIRELI,"
+        f" inscrita no CNPJ:41.649.122/0001-90,"
+        f" com sede social a Rua Doze de Outubro, nº 385 conjunto 23 – Lapa – CEP: 05073-001 – São Paulo – SP,"
+        f" neste ato representado"
+        f" MAYARA DANTAS LIMA, brasileira, solteira,"
+        f" empresária, portadora do"
+        f" CPF sob o nº. 106.592.994-37,"
+        f" RG inscrito sob nº.59.879.242-9 SSP/SP,"
+        f" doravante denominada MUTUANTE,"
+        f" {safe_get(res.cliente, 'nome')}, telefone nº {safe_get(res.cliente, 'telefone')},"
+        f" e-mail: {safe_get(res.cliente, 'email')} ,"
+        f" inscrito sob o documento de nº {safe_get(res.cliente, 'documento')}, residente e domiciliado na "
+        f" {safe_get(res.cliente.endereco, 'rua')}, nº {safe_get(res.cliente.endereco, 'numero')} {safe_get(res.cliente.endereco, 'complemento')},"
+        f" {safe_get(res.cliente.endereco, 'bairro')}, CEP: {safe_get(res.cliente.endereco, 'cep')} e"
+        f" {safe_get(res.cliente.endereco, 'cidade')}/{safe_get(res.cliente.endereco, 'uf')},"
+        f" doravante denominado(a) MUTUÁRIO(A),"
+        f" o presente mútuo, contrato nº {safe_get(res, 'numero')} mediante as seguintes cláusulas:",
+    )
+    doc.add_heading("CLÁUSULA PRIMEIRA - DO OBJETO", level=2)
+
+    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+
+    valor_total = safe_get(res.parcelamento, 'valor_total')
+    valor_total_formatado = locale.currency(valor_total, grouping=True)
+
+    doc.add_paragraph(
+        f"1.1. Por meio do presente instrumento, o(a) MUTUANTE empresta ao(à) MUTUÁRIO (A), direta e pessoalmente, a quantia de {valor_total_formatado}"
+        f" ({valor_por_extenso(valor_total)}). ",
+    )
+
+    if res.parcelamento.qtd_parcela > 1:
+        doc.add_paragraph(
+            f"1.2. A quantia será repassada ao(à) MUTUÁRIO(A) mediante, por meio parcelado em {safe_get(res.parcelamento, 'qtd_parcela')}x."
+        )
+    else:
+        doc.add_paragraph(
+            f"1.2. A quantia será repassada ao(à) MUTUÁRIO(A) mediante, por meio uma única parcela.")
+
+    doc.add_paragraph(
+        f"1.3. O(A) MUTUANTE entregará a quantia ao(à) MUTUÁRIO(A) no ato de assinatura deste instrumento OU em"
+        f" {get_data_format(res.parcelamento.data_inicio).strftime("%d/%m/%Y")}. "
+    )
+
+    doc.add_heading("CLÁUSULA SEGUNDA - DA DESTINAÇÃO DO EMPRÉSTIMO", level=2)
+    doc.add_paragraph(
+        "O(A) MUTUÁRIO(A) poderá fazer livre uso da quantia emprestada, desde que não seja para fins econômicos, ou seja, fica vedada a alienação do valor."
+    )
+
+    doc.add_heading("CLÁUSULA TERCEIRA - DO PAGAMENTO", level=2)
+    doc.add_paragraph(
+        f"3.1.1 O(a) MUTUÁRIO(A) se compromete a restituir ao(à) MUTUANTE a quantia mutuada especificada na cláusula primeira, da seguinte forma:"
+    )
+
+    if res.parcelamento.qtd_parcela > 1:
+        doc.add_paragraph(
+            f"Parcelado em {safe_get(res.parcelamento, 'qtd_parcela')}x"
+        )
+        datas_parcelas = []
+
+        data_inicio = get_data_format(res.parcelamento.data_inicio)
+
+        qtd_parcelas = int(safe_get(res.parcelamento, 'qtd_parcela'))
+
+        for i in range(qtd_parcelas):
+            data_parcela = data_inicio + relativedelta(months=i)
+            datas_parcelas.append({
+                "parcela": i + 1,
+                "dia": data_parcela.strftime("%d/%m/%Y")
+            })
+
+        for data in datas_parcelas:
+            doc.add_paragraph(
+                f"•	{data['parcela']}ª {data['dia']} "
+            )
+    else:
+        doc.add_paragraph(
+            f"Parcela única"
+        )
+
+        doc.add_paragraph(
+            f"•	1ª {get_data_format(res.parcelamento.data_inicio).strftime("%d/%m/%Y")} "
+        )
+
+    doc.add_paragraph(
+        "3.1.2. O empréstimo é realizado a título oneroso e haverá, portanto, incidência de juros compensatórios ou de "
+        "correção monetário sobre o valor mutuado."
+    )
+    doc.add_paragraph(
+        f"3.1.3. O(A) MUTUÁRIO(A) se compromete a restituir o valor mutuado ao(à) MUTUANTE acrescido de juros de {safe_get(res.parcelamento, 'taxa_juros')}% "
+        f"(teto máximo, podendo ser modificado) ao mês, aplicadas sobre a quantia total emprestada, além de correção monetária "
+        f"calculada com base na variação do IGP-M do período."
+    )
+
+    doc.add_paragraph(
+        "3.1.4. O atraso, bem como, o não pagamento fará com que o(a) MUTUANTE incorra em mora, sujeitando-se desta forma à cobranças extrajudiciais, bem como realização de protestos e o que se fizerem necessárias, com incidência de juros de 1% a.m. e de multa de 10% calculados sobre o mês de atraso."
+    )
+
+    doc.add_paragraph(
+        "3.1.5 O MUTUÁRIO poderá amortizar ou liquidar a dívida do empréstimo, antes do vencimento."
+    )
+
+    doc.add_paragraph(
+        "3.1.6. Eventual aceitação do(a) MUTUANTE(A) em receber parcelas pagas intempestivamente ou pelo não cumprimento de obrigações contratuais, a seu critério, não importará em novação, perdão ou alteração contratual, mas mera liberalidade do (a) MUTUÁRIO(A), permanecendo inalteradas as cláusulas deste contrato."
+    )
+
+    doc.add_paragraph(
+        "3.1.7. O valor do débito, objeto deste contrato, ficará representado por uma Nota Promissória, emitida pelo MUTUANTE a favor do MUTUÁRIO, com vencimento à vista, avalizada pelo INTERVENIENTE, acima qualificado."
+    )
+
+    doc.add_paragraph(
+        "3.1.8. O INTERVENIENTE, que é o avalista da supramencionada Nota Promissória, assinará este contrato também na qualidade de devedor solidário, no que atina ao pagamento da dívida contraída em razão deste instrumento."
+    )
+
+    doc.add_paragraph(
+        "3.1.9 Se houver inadimplemento por parte do MUTUÁRIO(A), o MUTUANTE ficará autorizado a protestar ou executar a Nota Promissória, pelo valor do saldo devedor, apurado na época, e a executar a garantia real."
+    )
+
+    doc.add_paragraph(
+        "PARAGRAFO ÚNICO - o MUTUÁRIO(A) desde já, autoriza que a(s) cobrança(s) seja(m) realizada em seu endereço residencial/comercial, desde que sejam respeitados os horários noturnos (que compreendem das 19:00hs ás 06:00 hs), ou aquele que o DEVEDOR indicar, inclusive aos finais de semana e feriados."
+    )
+
+    doc.add_heading("CLÁUSULA QUARTA - DAS OBRIGAÇÕES", level=2)
+
+    doc.add_paragraph(
+        "4.1. São obrigações do(a) MUTUÁRIO(a):"
+    )
+    doc.add_paragraph(
+        "•	Efetuar o pagamento pontualmente, conforme as datas e os meios fixados neste instrumento;"
+    )
+    doc.add_paragraph(
+        "•	Efetuar o pagamento pontualmente, conforme as datas e os meios fixados neste instrumento;"
+    )
+
+    doc.add_paragraph(
+        "4.2. São obrigações do (a) MUTUANTE (A):"
+    )
+    doc.add_paragraph(
+        "•	Receber o pagamento da dívida, nos termos estipulados neste termo;"
+    )
+    doc.add_paragraph(
+        "•	Entregar recibo de quitação da dívida ao MUTUÁRIO(A), quando finalizado todo o pagamento previsto."
+    )
+
+    doc.add_heading("CLÁUSULA QUINTA - DA CESSÃO E TRANSFERÊNCIA", level=2)
+    doc.add_paragraph(
+        "5.1. Fica vedada a cessão e transferência do presente contrato, seja a que título for, sem a expressa concordância do MUTUANTE, havendo concordância, será realizado um novo contrato em nome do novo MUTUÁRIO."
+    )
+
+    doc.add_heading("CLÁUSULA SEXTA - DA SUCESSÃO ", level=2)
+    doc.add_paragraph(
+        "6.1 Todas as obrigações assumidas neste instrumento são irrevogáveis e irretratáveis, o qual as partes obrigam-se a cumpri-lo, a qualquer título, e, em caso de óbito ou extinção de alguma das partes, serão transferidas a seus herdeiros ou sucessores, mediante anuência dos herdeiros."
+    )
+
+    doc.add_heading("CLÁUSULA SETIMA - DA VIGÊNCIA", level=2)
+    doc.add_paragraph(
+        "7.1. O presente contrato passa a vigorar entre as partes a partir da assinatura dele."
+    )
+
+    doc.add_heading("CLÁUSULA OITAVA - DO FORO", level=2)
+    doc.add_paragraph(
+        "8.1. As partes contratantes elegem o foro da cidade de São Paulo/SP para dirimir quaisquer dúvidas relativas ao cumprimento deste instrumento, não superadas pela mediação administrativa."
+    )
+    doc.add_paragraph(
+        "E, por estarem justos e combinados, MUTUANTE(A) e MUTUÁRIO(A) celebram e assinam o presente instrumento, em 2 (duas) vias de igual teor e forma, na presença das testemunhas, abaixo nomeadas e indicadas, que também o subscrevem, para que surta seus efeitos jurídicos."
+    )
+
+    # Data e assinaturas
+    doc.add_paragraph(f"\nSão Paulo, {date.today().strftime('%d/%m/%Y')}.")
+
+    doc.add_paragraph("MUTUÁRIO")
+    doc.add_paragraph(f"\n______________________________\n{safe_get(res.cliente, 'nome')}\n{safe_get(res.cliente, 'documento')}\n")
+    doc.add_paragraph(f"\n")
+    doc.add_paragraph("MUTUANTE")
+    doc.add_paragraph("\n______________________________\nM D LIMA CONSULTORIA EIRELI\nCNPJ: 41.649.122/0001-90\n")
+    doc.add_paragraph(f"\n")
+    doc.add_paragraph("INTERVENIENTE")
+    doc.add_paragraph("\n______________________________\nINTERVENIENTE\n")
+    doc.add_paragraph(f"\n")
+
+    return doc
+
+
+def contrato_word_pj(doc, res):
+    doc.add_paragraph(
+        f"Pelo presente instrumento, M D LIMA CONSULTORIA EIRELI,"
+        f" inscrita no CNPJ:41.649.122/0001-90,"
+        f" com sede social a Rua Doze de Outubro, nº 385 conjunto 23 – Lapa – CEP: 05073-001 – São Paulo – SP,"
+        f" neste ato representado"
+        f" MAYARA DANTAS LIMA, brasileira, solteira,"
+        f" empresária, portadora do"
+        f" CPF sob o nº. 106.592.994-37,"
+        f" RG inscrito sob nº.59.879.242-9 SSP/SP,"
+        f" doravante denominada MUTUANTE,"
+        f" {safe_get(res.cliente, 'nome')},inscrito no CNPJ: {safe_get(res.cliente, 'documento')},"
+        f" telefone nº {safe_get(res.cliente, 'telefone')},"
+        f" e-mail: {safe_get(res.cliente, 'email')}, residente e domiciliado na "
+        f" com sede social a Rua: "
+        f" {safe_get(res.cliente.endereco, 'rua')}, nº {safe_get(res.cliente.endereco, 'numero')} {safe_get(res.cliente.endereco, 'complemento')},"
+        f" {safe_get(res.cliente.endereco, 'bairro')}, CEP: {safe_get(res.cliente.endereco, 'cep')} e"
+        f" {safe_get(res.cliente.endereco, 'cidade')}/{safe_get(res.cliente.endereco, 'uf')},"
+        f" doravante denominado(a) MUTUÁRIO(A),"
+        f" o presente mútuo, contrato nº {safe_get(res, 'numero')} mediante as seguintes cláusulas:",
+    )
+    doc.add_heading("CLÁUSULA PRIMEIRA - DO OBJETO", level=2)
+
+    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+
+    valor_total = safe_get(res.parcelamento, 'valor_total')
+    valor_total_formatado = locale.currency(valor_total, grouping=True)
+
+    doc.add_paragraph(
+        f"1.1. Por meio do presente instrumento, o(a) MUTUANTE empresta ao(à) MUTUÁRIO (A), direta e pessoalmente, a quantia de {valor_total_formatado}"
+        f" ({valor_por_extenso(valor_total)}). ",
+    )
+
+    if res.parcelamento.qtd_parcela > 1:
+        doc.add_paragraph(
+            f"1.2. A quantia será repassada ao(à) MUTUÁRIO(A) mediante, por meio parcelado em {safe_get(res.parcelamento, 'qtd_parcela')}x."
+        )
+    else:
+        doc.add_paragraph(
+            f"1.2. A quantia será repassada ao(à) MUTUÁRIO(A) mediante, por meio uma única parcela.")
+
+    doc.add_paragraph(
+        f"1.3. O(A) MUTUANTE entregará a quantia ao(à) MUTUÁRIO(A) no ato de assinatura deste instrumento OU em"
+        f" {get_data_format(res.parcelamento.data_inicio).strftime("%d/%m/%Y")}. "
+    )
+
+    doc.add_heading("CLÁUSULA SEGUNDA - DA DESTINAÇÃO DO EMPRÉSTIMO", level=2)
+    doc.add_paragraph(
+        "O(A) MUTUÁRIO(A) poderá fazer livre uso da quantia emprestada, desde que não seja para fins econômicos, ou seja, fica vedada a alienação do valor."
+    )
+
+    doc.add_heading("CLÁUSULA TERCEIRA - DO PAGAMENTO", level=2)
+    doc.add_paragraph(
+        f"3.1.1 O(a) MUTUÁRIO(A) se compromete a restituir ao(à) MUTUANTE a quantia mutuada especificada na cláusula primeira, da seguinte forma:"
+    )
+
+    if res.parcelamento.qtd_parcela > 1:
+        doc.add_paragraph(
+            f"Parcelado em {safe_get(res.parcelamento, 'qtd_parcela')}x"
+        )
+        datas_parcelas = []
+
+        data_inicio = get_data_format(res.parcelamento.data_inicio)
+
+        qtd_parcelas = int(safe_get(res.parcelamento, 'qtd_parcela'))
+
+        for i in range(qtd_parcelas):
+            data_parcela = data_inicio + relativedelta(months=i)
+            datas_parcelas.append({
+                "parcela": i + 1,
+                "dia": data_parcela.strftime("%d/%m/%Y")
+            })
+
+        for data in datas_parcelas:
+            doc.add_paragraph(
+                f"•	{data['parcela']}ª {data['dia']} "
+            )
+    else:
+        doc.add_paragraph(
+            f"Parcela única"
+        )
+
+        doc.add_paragraph(
+            f"•	1ª {get_data_format(res.parcelamento.data_inicio).strftime("%d/%m/%Y")} "
+        )
+
+    doc.add_paragraph(
+        "3.1.2. O empréstimo é realizado a título oneroso e haverá, portanto, incidência de juros compensatórios ou de "
+        "correção monetário sobre o valor mutuado."
+    )
+    doc.add_paragraph(
+        f"3.1.3. O(A) MUTUÁRIO(A) se compromete a restituir o valor mutuado ao(à) MUTUANTE acrescido de juros de {safe_get(res.parcelamento, 'taxa_juros')}% "
+        f"(teto máximo, podendo ser modificado) ao mês, aplicadas sobre a quantia total emprestada, além de correção monetária "
+        f"calculada com base na variação do IGP-M do período."
+    )
+
+    doc.add_paragraph(
+        "3.1.4. O atraso, bem como, o não pagamento fará com que o(a) MUTUANTE incorra em mora, sujeitando-se desta forma à cobranças extrajudiciais, bem como realização de protestos e o que se fizerem necessárias, com incidência de juros de 1% a.m. e de multa de 10% calculados sobre o mês de atraso."
+    )
+
+    doc.add_paragraph(
+        "3.1.5 O MUTUÁRIO poderá amortizar ou liquidar a dívida do empréstimo, antes do vencimento."
+    )
+
+    doc.add_paragraph(
+        "3.1.6. Eventual aceitação do(a) MUTUANTE(A) em receber parcelas pagas intempestivamente ou pelo não cumprimento de obrigações contratuais, a seu critério, não importará em novação, perdão ou alteração contratual, mas mera liberalidade do (a) MUTUÁRIO(A), permanecendo inalteradas as cláusulas deste contrato."
+    )
+
+    doc.add_paragraph(
+        "3.1.7. O valor do débito, objeto deste contrato, ficará representado por uma Nota Promissória, emitida pelo MUTUANTE a favor do MUTUÁRIO, com vencimento à vista, avalizada pelo INTERVENIENTE, acima qualificado."
+    )
+
+    doc.add_paragraph(
+        "3.1.8. O INTERVENIENTE, que é o avalista da supramencionada Nota Promissória, assinará este contrato também na qualidade de devedor solidário, no que atina ao pagamento da dívida contraída em razão deste instrumento."
+    )
+
+    doc.add_paragraph(
+        "3.1.9 Se houver inadimplemento por parte do MUTUÁRIO(A), o MUTUANTE ficará autorizado a protestar ou executar a Nota Promissória, pelo valor do saldo devedor, apurado na época, e a executar a garantia real."
+    )
+
+    doc.add_paragraph(
+        "PARAGRAFO ÚNICO - o MUTUÁRIO(A) desde já, autoriza que a(s) cobrança(s) seja(m) realizada em seu endereço residencial/comercial, desde que sejam respeitados os horários noturnos (que compreendem das 19:00hs ás 06:00 hs), ou aquele que o DEVEDOR indicar, inclusive aos finais de semana e feriados."
+    )
+
+    doc.add_heading("CLÁUSULA QUARTA - DAS OBRIGAÇÕES", level=2)
+
+    doc.add_paragraph(
+        "4.1. São obrigações do(a) MUTUÁRIO(a):"
+    )
+    doc.add_paragraph(
+        "•	Efetuar o pagamento pontualmente, conforme as datas e os meios fixados neste instrumento;"
+    )
+    doc.add_paragraph(
+        "•	Efetuar o pagamento pontualmente, conforme as datas e os meios fixados neste instrumento;"
+    )
+
+    doc.add_paragraph(
+        "4.2. São obrigações do (a) MUTUANTE (A):"
+    )
+    doc.add_paragraph(
+        "•	Receber o pagamento da dívida, nos termos estipulados neste termo;"
+    )
+    doc.add_paragraph(
+        "•	Entregar recibo de quitação da dívida ao MUTUÁRIO(A), quando finalizado todo o pagamento previsto."
+    )
+
+    doc.add_heading("CLÁUSULA QUINTA - DA CESSÃO E TRANSFERÊNCIA", level=2)
+    doc.add_paragraph(
+        "5.1. Fica vedada a cessão e transferência do presente contrato, seja a que título for, sem a expressa concordância do MUTUANTE, havendo concordância, será realizado um novo contrato em nome do novo MUTUÁRIO."
+    )
+
+    doc.add_heading("CLÁUSULA SEXTA - DA SUCESSÃO ", level=2)
+    doc.add_paragraph(
+        "6.1 Todas as obrigações assumidas neste instrumento são irrevogáveis e irretratáveis, o qual as partes obrigam-se a cumpri-lo, a qualquer título, e, em caso de óbito ou extinção de alguma das partes, serão transferidas a seus herdeiros ou sucessores, mediante anuência dos herdeiros."
+    )
+
+    doc.add_heading("CLÁUSULA SETIMA - DA VIGÊNCIA", level=2)
+    doc.add_paragraph(
+        "7.1. O presente contrato passa a vigorar entre as partes a partir da assinatura dele."
+    )
+
+    doc.add_heading("CLÁUSULA OITAVA - DO FORO", level=2)
+    doc.add_paragraph(
+        "8.1. As partes contratantes elegem o foro da cidade de São Paulo/SP para dirimir quaisquer dúvidas relativas ao cumprimento deste instrumento, não superadas pela mediação administrativa."
+    )
+    doc.add_paragraph(
+        "E, por estarem justos e combinados, MUTUANTE(A) e MUTUÁRIO(A) celebram e assinam o presente instrumento, em 2 (duas) vias de igual teor e forma, na presença das testemunhas, abaixo nomeadas e indicadas, que também o subscrevem, para que surta seus efeitos jurídicos."
+    )
+
+    # Data e assinaturas
+    doc.add_paragraph(f"\nSão Paulo, {date.today().strftime('%d/%m/%Y')}.")
+
+    doc.add_paragraph("MUTUÁRIO")
+    doc.add_paragraph(
+        f"\n______________________________\n{safe_get(res.cliente, 'nome')}\n{safe_get(res.cliente, 'documento')}\n")
+    doc.add_paragraph(f"\n")
+    doc.add_paragraph("MUTUANTE")
+    doc.add_paragraph("\n______________________________\nM D LIMA CONSULTORIA EIRELI\nCNPJ: 41.649.122/0001-90\n")
+    doc.add_paragraph(f"\n")
+    doc.add_paragraph("INTERVENIENTE")
+    doc.add_paragraph("\n______________________________\nINTERVENIENTE\n")
+    doc.add_paragraph(f"\n")
+
+    return doc
+
+
+async def gerar_contrato_word(id: UUID, db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
+    res = await por_id(id, db)
+    if not res:
+        raise HTTPException(status_code=400, detail="Contrato não localizado na base de dados.")
+
+    doc = Document()
+
+    titulo = doc.add_paragraph("CONTRATO DE PRESTAÇÃO DE SERVIÇOS FINANCEIROS PARA PESSOA FISICAS")
+    titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    titulo.runs[0].bold = True
+    titulo.runs[0].font.size = Pt(14)
+
+
+    documento = ''.join(filter(str.isdigit, str(res.cliente.documento)))
+
+    if len(documento) == 11:
+        doc = contrato_word_pf(doc, res)
+    else:
+        doc = contrato_word_pj(doc, res)
+
+    nome_arquivo = "contrato.docx"
+    doc.save(nome_arquivo)
+    buffer = BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": "attachment; filename=contrato.docx"}
+    )

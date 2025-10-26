@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth_utils import verificar_token
-from app.core.contrato_utils import listar, criar, por_id, atualizar, delete_item
+from app.core.contrato_utils import listar, criar, por_id, atualizar, delete_item, gerar_contrato_word, gerar_contrato_pdf
 from app.connection.database import get_db
 from app.schemas.ContratoSchema import PaginateContratoResponse, ContratoResponse, ContratoRequest, ContratoUpdate
 
@@ -30,6 +30,25 @@ async def contrato_por_id(id: UUID,
     user_id: str = Depends(verificar_token)):
 
     res = await por_id(id, db)
+
+    return res
+
+
+@router.get("/api/v1/pdf/contrato/{id}", response_model=ContratoResponse,  tags=["Contrato"])
+async def contrato_pdf(id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(verificar_token)):
+
+    res = await gerar_contrato_pdf(id, db)
+
+    return res
+
+@router.get("/api/v1/word/contrato/{id}", response_model=ContratoResponse,  tags=["Contrato"])
+async def contrato_word(id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(verificar_token)):
+
+    res = await gerar_contrato_word(id, db)
 
     return res
 
