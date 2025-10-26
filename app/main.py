@@ -11,10 +11,14 @@ app = FastAPI(swagger_ui_parameters={"syntaxHighlight": False})
 async def startup_event():
     await create_db_and_tables()
 
+origins = [
+    "https://pelf-cred.netlify.app",
+    "http://localhost:4200",
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

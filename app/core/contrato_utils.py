@@ -5,8 +5,6 @@ from fastapi import Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
-import locale
-
 from sqlalchemy.orm import joinedload
 from starlette import status
 from starlette.responses import JSONResponse
