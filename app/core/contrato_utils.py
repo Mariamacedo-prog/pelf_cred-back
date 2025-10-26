@@ -832,6 +832,13 @@ async def delete_item(id: UUID, db: AsyncSession = Depends(get_db), user_id: str
         media_type="application/json; charset=utf-8"
     )
 
+def format_currency_br(value):
+    if not isinstance(value, (int, float)):
+        return "R$ 0,00"
+    # Format with US-style separators, then swap for BR style
+    formatted = f"{value:,.2f}"
+    formatted = formatted.replace(',', ' ').replace('.', ',').replace(' ', '.')
+    return f"R$ {formatted}"
 
 def valor_por_extenso(valor):
     reais = int(valor)
@@ -880,10 +887,8 @@ def contrato_pdf_pf(conteudo, styles, res):
 
     conteudo.append(Paragraph("<b>CLÁUSULA PRIMEIRA - DO OBJETO</b>", styles['Subtitulo']))
 
-    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
-
     valor_total = safe_get(res.parcelamento, 'valor_total')
-    valor_total_formatado = locale.currency(valor_total, grouping=True)
+    valor_total_formatado = format_currency_br(valor_total)
     conteudo.append(Paragraph(
         f"1.1. Por meio do presente instrumento, o(a) MUTUANTE empresta ao(à) MUTUÁRIO (A), direta e pessoalmente, a quantia de {valor_total_formatado}"
         f" ({valor_por_extenso(valor_total)}). ",
@@ -1117,10 +1122,8 @@ def contrato_pdf_pj(conteudo, styles, res):
 
     conteudo.append(Paragraph("<b>CLÁUSULA PRIMEIRA - DO OBJETO</b>", styles['Subtitulo']))
 
-    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')  # define para português do Brasil
-
     valor_total = safe_get(res.parcelamento, 'valor_total')
-    valor_total_formatado = locale.currency(valor_total, grouping=True)
+    valor_total_formatado = format_currency_br(valor_total)
     conteudo.append(Paragraph(
         f"1.1. Por meio do presente instrumento, o(a) MUTUANTE empresta ao(à) MUTUÁRIO (A), direta e pessoalmente, a quantia de {valor_total_formatado}"
         f" ({valor_por_extenso(valor_total)}). ",
@@ -1402,10 +1405,8 @@ def contrato_word_pf(doc, res):
     )
     doc.add_heading("CLÁUSULA PRIMEIRA - DO OBJETO", level=2)
 
-    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
-
     valor_total = safe_get(res.parcelamento, 'valor_total')
-    valor_total_formatado = locale.currency(valor_total, grouping=True)
+    valor_total_formatado = format_currency_br(valor_total)
 
     doc.add_paragraph(
         f"1.1. Por meio do presente instrumento, o(a) MUTUANTE empresta ao(à) MUTUÁRIO (A), direta e pessoalmente, a quantia de {valor_total_formatado}"
@@ -1587,10 +1588,8 @@ def contrato_word_pj(doc, res):
     )
     doc.add_heading("CLÁUSULA PRIMEIRA - DO OBJETO", level=2)
 
-    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
-
     valor_total = safe_get(res.parcelamento, 'valor_total')
-    valor_total_formatado = locale.currency(valor_total, grouping=True)
+    valor_total_formatado = format_currency_br(valor_total)
 
     doc.add_paragraph(
         f"1.1. Por meio do presente instrumento, o(a) MUTUANTE empresta ao(à) MUTUÁRIO (A), direta e pessoalmente, a quantia de {valor_total_formatado}"
