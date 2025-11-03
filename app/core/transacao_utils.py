@@ -220,7 +220,7 @@ async def total(
 
     totais = TransacaoTotais(
         total_gerado=resultados.get("GERADO", 0),
-        total_pago=resultados.get("PAGO", 0),
+        total_pago=resultados.get("PAGA", 0),
         total_em_atraso=resultados.get("EM_ATRASO", 0),
         total_cancelado=resultados.get("CANCELADO", 0)
     )
