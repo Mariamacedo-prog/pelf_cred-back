@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routes import auth, cliente, user, logs, plano, servico, vendedor, root, contrato
+from app.routes import auth, cliente, user, logs, plano, servico, vendedor, root, contrato, transacao
 from app.connection.database import create_db_and_tables
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -34,3 +34,4 @@ app.include_router(plano.router)
 app.include_router(servico.router)
 app.include_router(vendedor.router)
 app.include_router(contrato.router)
+app.include_router(transacao.router)

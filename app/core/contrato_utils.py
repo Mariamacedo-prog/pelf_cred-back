@@ -11,6 +11,8 @@ from starlette.responses import JSONResponse
 from sqlalchemy.sql import delete
 from app.Enum.StatusContrato import StatusContrato
 from app.Enum.StatusCobranca import StatusCobranca
+from app.Enum.StatusParcela import StatusParcela
+from app.Enum.TipoPagamento import TipoPagamento
 from app.connection.database import get_db
 from app.core.anexo_utils import base64_to_bytes, bytes_to_base64
 from app.core.auth_utils import verificar_token
@@ -25,6 +27,7 @@ from app.models.PlanoModel import PlanoModel
 from sqlalchemy import func, and_, or_, cast, String
 
 from app.models.ServicoModel import ServicoModel
+from app.models.TransacaoModel import TransacaoModel
 from app.models.VendedorModel import VendedorModel
 from app.schemas.AnexoSchema import AnexoRequest
 from app.schemas.ClienteSchema import  ClienteContratoResponse
@@ -49,6 +52,9 @@ from docx import Document
 from docx.shared import Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
+
+def safe_get(obj, attr, default=""):
+    return getattr(obj, attr, default) if obj else default
 
 async def criar(form_data: ContratoRequest,
                      db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
@@ -554,6 +560,7 @@ async def por_id(id: uuid.UUID,
             descricao=contrato.plano.descricao,
             valor_mensal=contrato.plano.valor_mensal,
             numero_parcelas=contrato.plano.numero_parcelas,
+            tipo_pagamento=contrato.plano.tipo_pagamento,
             ativo=contrato.plano.ativo,
             avista=contrato.plano.avista,
             periodo_vigencia=contrato.plano.periodo_vigencia,
@@ -698,7 +705,12 @@ async def atualizar(id: uuid.UUID, form_data: PlanoUpdate,
 
     anexos_para_apagar = anexos_antigos_ids - anexos_novos_ids
     if anexos_para_apagar:
-        delete_query = delete(AnexoModel).where(AnexoModel.id.in_(anexos_para_apagar))
+        delete_query = delete(AnexoModel).where(
+            and_(
+                AnexoModel.id.in_(anexos_para_apagar),
+                ~AnexoModel.nome.in_(['MUTUARIO.jpeg', 'MUTUANTE.jpeg'])
+            )
+        )
         await db.execute(delete_query)
 
     parcelamento_id = None
@@ -792,6 +804,172 @@ async def atualizar(id: uuid.UUID, form_data: PlanoUpdate,
         media_type="application/json; charset=utf-8"
     )
 
+async def mudar_status_contrato(id: uuid.UUID, status: StatusContrato, db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
+    queryContrato = select(ContratoModel).where(ContratoModel.id == id)
+    resultContrato = await db.execute(queryContrato)
+    contrato_existente = resultContrato.scalar_one_or_none()
+
+    dados_antes = limpar_dict_para_json(contrato_existente)
+
+    if not contrato_existente:
+        raise HTTPException(status_code=404, detail="Contrato não encontrado.")
+
+
+    contrato_existente.updated_at = datetime.utcnow()
+    contrato_existente.updated_by = uuid.UUID(user_id)
+
+    responsavel_assinatura = contrato_existente.responsavel_assinatura_id
+    cliente_assinatura = contrato_existente.cliente_assinatura_id
+    contrato_existente.status_contrato = status
+    if status == StatusContrato.INICIADO.value:
+        contrato_existente.responsavel_assinatura_id = None
+        contrato_existente.cliente_assinatura_id = None
+
+
+
+    dados_depois = limpar_dict_para_json(contrato_existente)
+
+    log = LogModel(
+        tabela_afetada="contratos",
+        operacao="UPDATE",
+        registro_id=contrato_existente.id,
+        dados_antes=dados_antes,
+        dados_depois=dados_depois,
+        usuario_id=uuid.UUID(user_id)
+    )
+    db.add(log)
+
+    await db.commit()
+    await db.refresh(contrato_existente)
+
+    if status == StatusContrato.INICIADO.value:
+        delete_query = delete(AnexoModel).where(
+            and_(
+                AnexoModel.id.in_([responsavel_assinatura, cliente_assinatura]),
+                AnexoModel.nome.in_(['MUTUARIO.jpeg', 'MUTUANTE.jpeg'])
+            )
+        )
+        await db.execute(delete_query)
+
+
+    return JSONResponse(
+        content={"detail": "Status atualizado com sucesso"},
+        media_type="application/json; charset=utf-8"
+    )
+
+async def gerar_transacoes(id: uuid.UUID, db: AsyncSession = Depends(get_db),  user_id: str = Depends(verificar_token)):
+    queryContrato = select(ContratoModel).options(
+        joinedload(ContratoModel.parcelamento),
+        joinedload(ContratoModel.plano),
+    ).where(ContratoModel.id == id)
+    resultContrato = await db.execute(queryContrato)
+    contrato_existente = resultContrato.scalar_one_or_none()
+
+    if not contrato_existente:
+        return []
+
+    qtd_parcelas = int(safe_get(contrato_existente.parcelamento, 'qtd_parcela'))
+
+    if qtd_parcelas:
+        for i in range(qtd_parcelas):
+            data = contrato_existente.parcelamento.data_inicio
+            if contrato_existente.plano.tipo_pagamento == TipoPagamento.MENSAL.value:
+                data = data + relativedelta(months=i)
+            elif contrato_existente.plano.tipo_pagamento == TipoPagamento.SEMANAL.value:
+                data = data + relativedelta(days=i * 7)
+            else:
+                data = data + relativedelta(months=i)
+
+            nova_parcela = TransacaoModel(
+                id = None,
+                contrato_id = contrato_existente.id,
+                plano_id = contrato_existente.plano.id,
+                valor = contrato_existente.parcelamento.valor_parcela,
+                numero_parcela  = i + 1,
+                numero_contrato = contrato_existente.numero,
+                status_parcela = StatusParcela.GERADO.value,
+                data_vencimento = data,
+                created_by = uuid.UUID(user_id),
+            )
+            db.add(nova_parcela)
+            await db.flush()
+
+    return contrato_existente
+
+async def assinar_contrato(id: uuid.UUID, proprietario: str, form_data: AnexoRequest, db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
+    queryContrato = select(ContratoModel).where(ContratoModel.id == id)
+    resultContrato = await db.execute(queryContrato)
+    contrato_existente = resultContrato.scalar_one_or_none()
+
+    dados_antes = limpar_dict_para_json(contrato_existente)
+
+    if not contrato_existente:
+        raise HTTPException(status_code=404, detail="Contrato não encontrado.")
+
+    contrato_existente.updated_at = datetime.utcnow()
+    contrato_existente.updated_by = uuid.UUID(user_id)
+
+    if form_data.id:
+        query_anexo_existente = select(AnexoModel).where(AnexoModel.id == form_data.id)
+        result_anexo = await db.execute(query_anexo_existente)
+        anexo_existente = result_anexo.scalar_one_or_none()
+
+        if anexo_existente:
+            anexo_existente.base64 = base64_to_bytes(form_data.base64)
+            anexo_existente.image = form_data.image
+            anexo_existente.descricao = form_data.descricao
+            anexo_existente.nome = form_data.nome
+            anexo_existente.tipo = form_data.tipo
+            anexo_existente.updated_by = uuid.UUID(user_id)
+            anexo_existente.updated_at = datetime.utcnow()
+
+            await db.merge(anexo_existente)
+            if proprietario == 'cliente':
+                contrato_existente.cliente_assinatura_id = anexo_existente.id
+            else:
+                contrato_existente.responsavel_assinatura_id = anexo_existente.id
+    else:
+        novo_item_id = uuid.uuid4()
+        image_bytes = base64_to_bytes(form_data.base64)
+        novo_anexo = AnexoModel(
+            id=novo_item_id,
+            base64=image_bytes,
+            image=form_data.image,
+            descricao=form_data.descricao,
+            nome=form_data.nome,
+            tipo=form_data.tipo,
+            created_by=uuid.UUID(user_id)
+        )
+        db.add(novo_anexo)
+        await db.flush()
+        if proprietario == 'cliente':
+            contrato_existente.cliente_assinatura_id = novo_item_id
+        else:
+            contrato_existente.responsavel_assinatura_id = novo_item_id
+
+    if contrato_existente.cliente_assinatura_id and contrato_existente.responsavel_assinatura_id:
+        contrato_existente.status_contrato = StatusContrato.ATIVO.value
+        await gerar_transacoes(id, db, user_id)
+
+    dados_depois = limpar_dict_para_json(contrato_existente)
+
+    log = LogModel(
+        tabela_afetada="contratos",
+        operacao="UPDATE",
+        registro_id=contrato_existente.id,
+        dados_antes=dados_antes,
+        dados_depois=dados_depois,
+        usuario_id=uuid.UUID(user_id)
+    )
+    db.add(log)
+
+    await db.commit()
+    await db.refresh(contrato_existente)
+
+    return JSONResponse(
+        content={"detail": "Contrato assinado com sucesso"},
+        media_type="application/json; charset=utf-8"
+    )
 
 async def delete_item(id: UUID, db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
 
@@ -848,9 +1026,6 @@ def valor_por_extenso(valor):
     else:
         return f"{extenso_reais} reais"
 
-def safe_get(obj, attr, default=""):
-    return getattr(obj, attr, default) if obj else default
-
 def get_data_format(data_inicio_raw):
     data_inicio = None
     if isinstance(data_inicio_raw, str):
@@ -859,6 +1034,22 @@ def get_data_format(data_inicio_raw):
         data_inicio = data_inicio_raw
 
     return data_inicio
+
+def get_data_list(data_inicio,i, res, datas_parcelas):
+    data_parcela = data_inicio
+    if res.plano.tipo_pagamento == TipoPagamento.MENSAL.value:
+        data_parcela = data_inicio + relativedelta(months=i)
+    elif res.plano.tipo_pagamento == TipoPagamento.SEMANAL.value:
+        data_parcela = data_inicio + relativedelta(days=i * 7)
+    else:
+        data_parcela = data_inicio + relativedelta(months=i)
+
+    datas_parcelas.append({
+        "parcela": i + 1,
+        "dia": data_parcela.strftime("%d/%m/%Y")
+    })
+
+    return datas_parcelas
 
 def contrato_pdf_pf(conteudo, styles, res):
     conteudo.append(Paragraph("CONTRATO DE PRESTAÇÃO DE SERVIÇOS FINANCEIROS PARA PESSOA FISICAS", styles['Titulo']))
@@ -934,11 +1125,7 @@ def contrato_pdf_pf(conteudo, styles, res):
         qtd_parcelas = int(safe_get(res.parcelamento, 'qtd_parcela'))
 
         for i in range(qtd_parcelas):
-            data_parcela = data_inicio + relativedelta(months=i)
-            datas_parcelas.append({
-                "parcela": i + 1,
-                "dia": data_parcela.strftime("%d/%m/%Y")
-            })
+            get_data_list(data_inicio,i, res, datas_parcelas)
 
         for data in datas_parcelas:
             conteudo.append(Paragraph(
@@ -1169,11 +1356,7 @@ def contrato_pdf_pj(conteudo, styles, res):
         qtd_parcelas = int(safe_get(res.parcelamento, 'qtd_parcela'))
 
         for i in range(qtd_parcelas):
-            data_parcela = data_inicio + relativedelta(months=i)
-            datas_parcelas.append({
-                "parcela": i + 1,
-                "dia": data_parcela.strftime("%d/%m/%Y")
-            })
+            get_data_list(data_inicio, i, res, datas_parcelas)
 
         for data in datas_parcelas:
             conteudo.append(Paragraph(
@@ -1380,7 +1563,6 @@ async def gerar_contrato_pdf(id: UUID, db: AsyncSession = Depends(get_db), user_
         headers={"Content-Disposition": "attachment; filename=contrato.pdf"}
     )
 
-
 def contrato_word_pf(doc, res):
     doc.add_paragraph(
         f"Pelo presente instrumento, M D LIMA CONSULTORIA EIRELI,"
@@ -1445,11 +1627,7 @@ def contrato_word_pf(doc, res):
         qtd_parcelas = int(safe_get(res.parcelamento, 'qtd_parcela'))
 
         for i in range(qtd_parcelas):
-            data_parcela = data_inicio + relativedelta(months=i)
-            datas_parcelas.append({
-                "parcela": i + 1,
-                "dia": data_parcela.strftime("%d/%m/%Y")
-            })
+            get_data_list(data_inicio, i, res, datas_parcelas)
 
         for data in datas_parcelas:
             doc.add_paragraph(
@@ -1562,7 +1740,6 @@ def contrato_word_pf(doc, res):
 
     return doc
 
-
 def contrato_word_pj(doc, res):
     doc.add_paragraph(
         f"Pelo presente instrumento, M D LIMA CONSULTORIA EIRELI,"
@@ -1628,11 +1805,7 @@ def contrato_word_pj(doc, res):
         qtd_parcelas = int(safe_get(res.parcelamento, 'qtd_parcela'))
 
         for i in range(qtd_parcelas):
-            data_parcela = data_inicio + relativedelta(months=i)
-            datas_parcelas.append({
-                "parcela": i + 1,
-                "dia": data_parcela.strftime("%d/%m/%Y")
-            })
+            get_data_list(data_inicio, i, res, datas_parcelas)
 
         for data in datas_parcelas:
             doc.add_paragraph(
@@ -1745,7 +1918,6 @@ def contrato_word_pj(doc, res):
     doc.add_paragraph(f"\n")
 
     return doc
-
 
 async def gerar_contrato_word(id: UUID, db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
     res = await por_id(id, db)

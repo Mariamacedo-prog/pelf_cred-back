@@ -4,9 +4,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.Enum.StatusContrato import StatusContrato
 from app.core.auth_utils import verificar_token
-from app.core.contrato_utils import listar, criar, por_id, atualizar, delete_item, gerar_contrato_word, gerar_contrato_pdf
+from app.core.contrato_utils import listar, criar, por_id, atualizar, delete_item, gerar_contrato_word, gerar_contrato_pdf, mudar_status_contrato, assinar_contrato
 from app.connection.database import get_db
+from app.schemas.AnexoSchema import AnexoRequest
 from app.schemas.ContratoSchema import PaginateContratoResponse, ContratoResponse, ContratoRequest, ContratoUpdate
 
 router = APIRouter()
@@ -80,5 +82,32 @@ async def atualizar_contrato(id: UUID, form_data: ContratoUpdate,
 async def deletar_contrato(id: UUID, db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
 
     res = await delete_item(id, db, user_id)
+
+    return res
+
+
+@router.put("/api/v1/contrato/{id}/enviar-para-assinatura", tags=["Contrato"])
+async def enviar_assinatura(id: UUID, db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
+    res = await mudar_status_contrato(id, StatusContrato.PENDENTE_ASSINATURA.value, db, user_id)
+
+    return res
+
+
+@router.put("/api/v1/contrato/{id}/enviar-para-edicao", tags=["Contrato"])
+async def enviar_assinatura(id: UUID, db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
+    res = await mudar_status_contrato(id, StatusContrato.INICIADO.value, db, user_id)
+
+    return res
+
+@router.post("/api/v1/contrato/{id}/assinar/cliente", tags=["Contrato"])
+async def assinatura_cliente(id: UUID, form_data: AnexoRequest, db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
+    res = await assinar_contrato(id, 'cliente', form_data, db, user_id)
+
+    return res
+
+
+@router.post("/api/v1/contrato/{id}/assinar/responsavel", tags=["Contrato"])
+async def assinatura_responsavel(id: UUID, form_data: AnexoRequest, db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
+    res = await assinar_contrato(id, 'responsavel', form_data, db, user_id)
 
     return res

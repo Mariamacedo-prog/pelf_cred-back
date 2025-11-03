@@ -17,6 +17,7 @@ from app.models.AnexoModel import AnexoModel
 from app.models.ParcelamentoModel import ParcelamentoModel
 from app.models.ContratoModel import ContratoModel
 from app.models.AssinaturaEvidenciaModel import AssinaturaEvidenciaModel
+from app.models.TransacaoModel import TransacaoModel
 
 
 load_dotenv()

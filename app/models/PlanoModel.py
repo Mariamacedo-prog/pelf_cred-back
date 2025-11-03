@@ -3,6 +3,8 @@ from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy import Column, String, Boolean, DateTime, Text, Numeric, Integer
+
+from app.Enum.TipoPagamento import TipoPagamento
 from app.connection.base_class import Base
 
 class PlanoModel(Base):
@@ -16,6 +18,7 @@ class PlanoModel(Base):
     numero_parcelas = Column(Integer, index=True, nullable=True)
     entrada = Column(Numeric(10, 2), index=True, nullable=True)
     ativo = Column(Boolean, default=True)
+    tipo_pagamento = Column(String, index=True, default=TipoPagamento.MENSAL.value, nullable=False)
     avista = Column(Boolean, default=None)
     periodo_vigencia = Column(String, nullable=True)
     servicos_vinculados = Column(ARRAY(UUID(as_uuid=True)), nullable=True)

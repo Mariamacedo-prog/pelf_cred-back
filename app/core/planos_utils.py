@@ -76,6 +76,7 @@ async def listar(
             nome=plano.nome,
             descricao=plano.descricao,
             valor_mensal=plano.valor_mensal,
+            tipo_pagamento=plano.tipo_pagamento,
             valor_total=plano.valor_total,
             numero_parcelas=plano.numero_parcelas,
             ativo=plano.ativo,
@@ -146,6 +147,7 @@ async def criar(form_data: PlanoRequest,
         valor_mensal=form_data.valor_mensal,
         valor_total=total_parcelamento,
         numero_parcelas=form_data.numero_parcelas,
+        tipo_pagamento=form_data.tipo_pagamento,
         ativo=True,
         avista=form_data.avista,
         periodo_vigencia=form_data.periodo_vigencia,
@@ -242,6 +244,10 @@ async def atualizar(id: uuid.UUID, form_data: PlanoUpdate,
         plano.avista = form_data.avista
     if form_data.periodo_vigencia is not None:
         plano.periodo_vigencia = form_data.periodo_vigencia
+
+    if form_data.tipo_pagamento is not None:
+        plano.tipo_pagamento = form_data.tipo_pagamento
+
 
     if form_data.servicos_vinculados is not None:
         plano.servicos_vinculados = [

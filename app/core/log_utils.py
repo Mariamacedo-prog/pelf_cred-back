@@ -4,13 +4,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel
 
-
 def limpar_dict_para_json(obj):
-    import uuid
-    from datetime import datetime
-    from decimal import Decimal
-    from pydantic import BaseModel
-
     # Se for UUID, retorna string
     if isinstance(obj, uuid.UUID):
         return str(obj)
@@ -22,6 +16,10 @@ def limpar_dict_para_json(obj):
     # Se for Decimal, converte para float
     if isinstance(obj, Decimal):
         return float(obj)
+
+    # Se for bytes, pula (ignora campos binários)
+    if isinstance(obj, bytes):
+        return None  # Ou simplesmente não adiciona ao resultado
 
     # Se for lista, processa cada item
     if isinstance(obj, list):
@@ -40,6 +38,8 @@ def limpar_dict_para_json(obj):
         result = {}
         for key, value in obj.items():
             if key == "_sa_instance_state":
+                continue
+            if isinstance(value, bytes):  # Ignora campos binários
                 continue
             result[key] = limpar_dict_para_json(value)
         return result
