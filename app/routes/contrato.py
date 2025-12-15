@@ -1,11 +1,11 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.Enum.StatusContrato import StatusContrato
-from app.core.auth_utils import verificar_token
+from app.core.auth_utils import verificar_token, passou_do_horario
 from app.core.contrato_utils import listar, criar, por_id, atualizar, delete_item, gerar_contrato_word, gerar_contrato_pdf, mudar_status_contrato, assinar_contrato
 from app.connection.database import get_db
 from app.schemas.AnexoSchema import AnexoRequest
@@ -60,6 +60,9 @@ async def novo_contrato(form_data: ContratoRequest,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(verificar_token)):
 
+    if passou_do_horario():
+        raise HTTPException(status_code=400, detail=f"Horário não permitido.")
+
     res = await criar(form_data, db, user_id)
 
     return res
@@ -71,6 +74,8 @@ async def atualizar_contrato(id: UUID, form_data: ContratoUpdate,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(verificar_token)
     ):
+    if passou_do_horario():
+        raise HTTPException(status_code=400, detail=f"Horário não permitido.")
 
     res = await atualizar(id, form_data, db, user_id)
 
@@ -80,6 +85,8 @@ async def atualizar_contrato(id: UUID, form_data: ContratoUpdate,
 
 @router.delete("/api/v1/contrato/{id}", tags=["Contrato"])
 async def deletar_contrato(id: UUID, db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
+    if passou_do_horario():
+        raise HTTPException(status_code=400, detail=f"Horário não permitido.")
 
     res = await delete_item(id, db, user_id)
 
@@ -88,6 +95,9 @@ async def deletar_contrato(id: UUID, db: AsyncSession = Depends(get_db), user_id
 
 @router.put("/api/v1/contrato/{id}/enviar-para-assinatura", tags=["Contrato"])
 async def enviar_assinatura(id: UUID, db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
+    if passou_do_horario():
+        raise HTTPException(status_code=400, detail=f"Horário não permitido.")
+
     res = await mudar_status_contrato(id, StatusContrato.PENDENTE_ASSINATURA.value, db, user_id)
 
     return res
@@ -95,6 +105,9 @@ async def enviar_assinatura(id: UUID, db: AsyncSession = Depends(get_db), user_i
 
 @router.put("/api/v1/contrato/{id}/enviar-para-edicao", tags=["Contrato"])
 async def enviar_assinatura(id: UUID, db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
+    if passou_do_horario():
+        raise HTTPException(status_code=400, detail=f"Horário não permitido.")
+
     res = await mudar_status_contrato(id, StatusContrato.INICIADO.value, db, user_id)
 
     return res

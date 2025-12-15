@@ -207,7 +207,7 @@ async def criar(form_data: ClienteRequest,
         )
         db.add(novo_endereco_comercial)
         await db.flush()
-        endereco_comercial_id = novo_endereco.id
+        endereco_comercial_id = novo_endereco_comercial.id
 
     form_data.id = uuid.uuid4()
 

@@ -2,10 +2,10 @@ from datetime import date
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth_utils import verificar_token
+from app.core.auth_utils import verificar_token, passou_do_horario
 from app.core.transacao_utils import listar, por_id, atualizar, total
 from app.connection.database import get_db
 from app.schemas.TransacaoSchema import PaginatedTransacaoResponse, TransacaoResponse, TransacaoUpdate, TransacaoTotais
@@ -55,6 +55,8 @@ async def atualizar_transacao(id: UUID, form_data: TransacaoUpdate,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(verificar_token)
     ):
+    if passou_do_horario():
+        raise HTTPException(status_code=400, detail=f"Horário não permitido.")
 
     res = await atualizar(id, form_data, db, user_id)
 

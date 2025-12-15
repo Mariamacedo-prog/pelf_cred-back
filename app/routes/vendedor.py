@@ -1,9 +1,9 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.auth_utils import verificar_token
+from app.core.auth_utils import verificar_token, passou_do_horario
 from app.core.vendedor_utils import listar, criar, por_id, atualizar, delete
 from app.connection.database import get_db
 from app.schemas.VendedorSchema import  VendedorRequest, VendedorUpdate, PaginatedVendedorResponse, VendedorResponse
@@ -37,6 +37,8 @@ async def vendedor_por_id(id: UUID,
 async def novo_vendedor(form_data: VendedorRequest,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(verificar_token)):
+    if passou_do_horario():
+        raise HTTPException(status_code=400, detail=f"Horário não permitido.")
 
     res = await criar(form_data, db, user_id)
 
@@ -50,6 +52,9 @@ async def atualizar_vendedor(id: UUID, form_data: VendedorUpdate,
     user_id: str = Depends(verificar_token)
     ):
 
+    if passou_do_horario():
+        raise HTTPException(status_code=400, detail=f"Horário não permitido.")
+
     res = await atualizar(id, form_data, db, user_id)
 
     return res
@@ -58,6 +63,8 @@ async def atualizar_vendedor(id: UUID, form_data: VendedorUpdate,
 
 @router.delete("/api/v1/vendedor/{id}", tags=["Vendedor"])
 async def deletar_vendedor(id: UUID, db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
+    if passou_do_horario():
+        raise HTTPException(status_code=400, detail=f"Horário não permitido.")
 
     res = await delete(id, db, user_id)
 

@@ -32,7 +32,7 @@ class ClienteRequest(BaseModel):
     telefone: Optional[str] = None
     grupo_segmento: Optional[str] = None
     endereco: EnderecoRequest
-    endereco_comercial: Optional[EnderecoRequest]
+    endereco_comercial: Optional[EnderecoRequest] = None
 
 
 class ClienteResponse(BaseModel):

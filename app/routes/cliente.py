@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 from starlette.responses import JSONResponse
 
-from app.core.auth_utils import verificar_token
+from app.core.auth_utils import verificar_token, passou_do_horario
 from app.core.log_utils import limpar_dict_para_json
 from app.core.cliente_utils import criar, listar_por_id, listar, atualizar
 from app.models.ClienteModel import ClienteModel
@@ -57,6 +57,9 @@ async def cliente_por_id(id: UUID,
 async def novo_cliente(form_data: ClienteRequest,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(verificar_token) ):
+    if passou_do_horario():
+        raise HTTPException(status_code=400, detail=f"Horário não permitido.")
+
     queryDocumento = select(ClienteModel).where(ClienteModel.documento == form_data.documento)
     resultDocumento = await db.execute(queryDocumento)
     clienteDocumento = resultDocumento.scalar_one_or_none()
@@ -74,6 +77,8 @@ async def atualizar_cliente(id: UUID, form_data: ClienteUpdate,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(verificar_token)
     ):
+    if passou_do_horario():
+        raise HTTPException(status_code=400, detail=f"Horário não permitido.")
 
     if form_data.documento:
         queryDocumento = select(ClienteModel).where(
@@ -99,6 +104,9 @@ async def deletar_cliente(id: UUID, db: AsyncSession = Depends(get_db), user_id:
     query = select(ClienteModel).where(ClienteModel.id == id)
     result = await db.execute(query)
     cliente = result.scalar_one_or_none()
+
+    if passou_do_horario():
+        raise HTTPException(status_code=400, detail=f"Horário não permitido.")
 
     if not cliente:
         raise HTTPException(

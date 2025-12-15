@@ -1,10 +1,10 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth_utils import verificar_token
+from app.core.auth_utils import verificar_token, passou_do_horario
 from app.core.servico_utils import listar, criar, por_id, atualizar, delete
 from app.connection.database import get_db
 from app.schemas.ServicoSchema import PaginatedServicoResponse, ServicoRequest, ServicoBase, ServicoUpdate, PaginatedServicoListResponse
@@ -53,6 +53,9 @@ async def novo_servico(form_data: ServicoRequest,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(verificar_token)):
 
+    if passou_do_horario():
+        raise HTTPException(status_code=400, detail=f"Horário não permitido.")
+
     res = await criar(form_data, db, user_id)
 
     return res
@@ -65,6 +68,9 @@ async def atualizar_servico(id: UUID, form_data: ServicoUpdate,
     user_id: str = Depends(verificar_token)
     ):
 
+    if passou_do_horario():
+        raise HTTPException(status_code=400, detail=f"Horário não permitido.")
+
     res = await atualizar(id, form_data, db, user_id)
 
     return res
@@ -73,6 +79,9 @@ async def atualizar_servico(id: UUID, form_data: ServicoUpdate,
 
 @router.delete("/api/v1/servico/{id}", tags=["Serviço"])
 async def deletar_servico(id: UUID, db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
+
+    if passou_do_horario():
+        raise HTTPException(status_code=400, detail=f"Horário não permitido.")
 
     res = await delete(id, db, user_id)
 

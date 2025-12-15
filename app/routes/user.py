@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 from starlette.responses import JSONResponse
 
-from app.core.auth_utils import verificar_token
+from app.core.auth_utils import verificar_token, passou_do_horario
 from app.core.log_utils import limpar_dict_para_json
 from app.core.user_utils import criar_user, user_por_id, listar_users, atualizar_user
 from app.models.LogModel import LogModel
@@ -54,6 +54,10 @@ async def usuario_por_id(id: UUID,
 @router.post("/api/v1/novo/user",response_model=LoginResponse, tags=["User"])
 async def novo_usuario(form_data: UserRequest,
     db: AsyncSession = Depends(get_db), ):
+
+    if passou_do_horario():
+        raise HTTPException(status_code=400, detail=f"Horário não permitido.")
+
     queryCpf = select(UserModel).where(UserModel.cpf == form_data.cpf)
     resultCpf = await db.execute(queryCpf)
     userCpf = resultCpf.scalar_one_or_none()
@@ -87,6 +91,9 @@ async def atualizar_usuario(id: UUID, form_data: UserUpdate,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(verificar_token)
     ):
+
+    if passou_do_horario():
+        raise HTTPException(status_code=400, detail=f"Horário não permitido.")
 
     if form_data.cpf:
         queryCpf = select(UserModel).where(
@@ -137,6 +144,9 @@ async def atualizar_usuario(id: UUID, form_data: UserUpdate,
 
 @router.delete("/api/v1/user/{id}", tags=["User"])
 async def deletar_usuario(id: UUID, db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
+    if passou_do_horario():
+        raise HTTPException(status_code=400, detail=f"Horário não permitido.")
+
     query = select(UserModel).where(UserModel.id == id)
     result = await db.execute(query)
     user = result.scalar_one_or_none()

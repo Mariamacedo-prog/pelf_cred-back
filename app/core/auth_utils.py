@@ -6,6 +6,7 @@ from fastapi.security import OAuth2PasswordBearer
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 import os
+from zoneinfo import ZoneInfo
 
 load_dotenv()
 
@@ -48,3 +49,8 @@ async def verificar_token(token: str = Depends(oauth2_scheme)):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+
+
+def passou_do_horario() -> bool:
+    agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
+    return agora.hour >= 18
