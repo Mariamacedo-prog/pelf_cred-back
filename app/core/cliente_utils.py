@@ -132,6 +132,24 @@ async def listar_por_id(id: uuid.UUID, cliente: ClienteResponse,
             uf=clienteEndereco.uf
         )
 
+    queryEnderecoComercial = select(EnderecoModel).where(EnderecoModel.id == cliente.endereco_comercial_id)
+    resultEnderecoComercial = await db.execute(queryEnderecoComercial)
+    clienteEnderecoComercial = resultEnderecoComercial.scalar_one_or_none()
+
+    endereco_comercial = None
+
+    if clienteEnderecoComercial:
+        endereco_comercial = EnderecoRequest(
+            id=clienteEnderecoComercial.id,
+            cep=clienteEnderecoComercial.cep,
+            rua=clienteEnderecoComercial.rua,
+            numero=clienteEnderecoComercial.numero,
+            bairro=clienteEnderecoComercial.bairro,
+            complemento=clienteEnderecoComercial.complemento,
+            cidade=clienteEnderecoComercial.cidade,
+            uf=clienteEnderecoComercial.uf
+        )
+
     cliente = ClienteResponse(
         id=id,
         nome=cliente.nome,
@@ -147,6 +165,7 @@ async def listar_por_id(id: uuid.UUID, cliente: ClienteResponse,
         updated_by=cliente.updated_by,
         deleted_by=cliente.deleted_by,
         endereco=endereco,
+        endereco_comercial=endereco_comercial,
     )
 
     return cliente
@@ -173,11 +192,29 @@ async def criar(form_data: ClienteRequest,
         await db.flush()
         endereco_id = novo_endereco.id
 
+    endereco_comercial_id = None
+    if form_data.endereco_comercial:
+        endereco_comercial_data = form_data.endereco_comercial
+        novo_endereco_comercial = EnderecoModel(
+            id=uuid.uuid4(),
+            cep=endereco_comercial_data.cep,
+            rua=endereco_comercial_data.rua,
+            numero=endereco_comercial_data.numero,
+            bairro=endereco_comercial_data.bairro,
+            complemento=endereco_comercial_data.complemento,
+            cidade=endereco_comercial_data.cidade,
+            uf=endereco_comercial_data.uf
+        )
+        db.add(novo_endereco_comercial)
+        await db.flush()
+        endereco_comercial_id = novo_endereco.id
+
     form_data.id = uuid.uuid4()
 
     novo_cliente = ClienteModel(
         id=form_data.id,
         endereco_id=endereco_id,
+        endereco_comercial_id=endereco_comercial_id,
         nome=form_data.nome,
         documento=form_data.documento,
         email=form_data.email,
@@ -266,6 +303,34 @@ async def atualizar(id: uuid.UUID, form_data: ClienteUpdate,
             endereco.uf = endereco_data.uf
 
         db.add(endereco)
+
+    if form_data.endereco_comercial:
+        if cliente.endereco_comercial_id:
+            result = await db.execute(select(EnderecoModel).where(EnderecoModel.id == cliente.endereco_comercial_id))
+            endereco_comercial = result.scalar_one_or_none()
+        else:
+            endereco_comercial = EnderecoModel(id=uuid.uuid4())
+            db.add(endereco_comercial)
+            cliente.endereco_comercial_id = endereco_comercial.id
+
+        endereco_data_comercial = form_data.endereco_comercial
+
+        if endereco_data_comercial.cep is not None:
+            endereco_comercial.cep = endereco_data_comercial.cep
+        if endereco_data_comercial.rua is not None:
+            endereco_comercial.rua = endereco_data_comercial.rua
+        if endereco_data_comercial.numero is not None:
+            endereco_comercial.numero = endereco_data_comercial.numero
+        if endereco_data_comercial.bairro is not None:
+            endereco_comercial.bairro = endereco_data_comercial.bairro
+        if endereco_data_comercial.complemento is not None:
+            endereco_comercial.complemento = endereco_data_comercial.complemento
+        if endereco_data_comercial.cidade is not None:
+            endereco_comercial.cidade = endereco_data_comercial.cidade
+        if endereco_data_comercial.uf is not None:
+            endereco_comercial.uf = endereco_data_comercial.uf
+
+        db.add(endereco_comercial)
 
     dados_novos = limpar_dict_para_json(cliente)
     log = LogModel(

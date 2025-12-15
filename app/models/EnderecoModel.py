@@ -24,5 +24,6 @@ class EnderecoModel(Base):
     deleted_by = Column(UUID(as_uuid=True), index=True, nullable=True)
 
     usuario = relationship("UserModel", back_populates="endereco")
-    cliente = relationship("ClienteModel", back_populates="endereco")
     vendedor = relationship("VendedorModel", back_populates="endereco")
+    cliente_endereco = relationship("ClienteModel",foreign_keys="[ClienteModel.endereco_id]", back_populates="endereco")
+    cliente_endereco_comercial = relationship("ClienteModel",foreign_keys="[ClienteModel.endereco_comercial_id]",back_populates="endereco_comercial")

@@ -10,6 +10,7 @@ class ClienteModel(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     endereco_id = Column(UUID(as_uuid=True), ForeignKey("enderecos.id"), nullable=True)
+    endereco_comercial_id = Column(UUID(as_uuid=True), ForeignKey("enderecos.id"), nullable=True)
     nome = Column(String, index=True, nullable=False)
     documento = Column(String, index=True, nullable=False)
     telefone = Column(String, index=True, nullable=False)
@@ -23,5 +24,6 @@ class ClienteModel(Base):
     deleted_at = Column(DateTime(timezone=True), nullable=True)
     deleted_by = Column(UUID(as_uuid=True), index=True, nullable=True)
 
-    endereco = relationship("EnderecoModel", back_populates="cliente")
+    endereco_comercial = relationship("EnderecoModel", foreign_keys=[endereco_comercial_id], back_populates="cliente_endereco_comercial")
+    endereco = relationship("EnderecoModel", foreign_keys=[endereco_id],  back_populates="cliente_endereco")
     contrato = relationship("ContratoModel", back_populates="cliente")

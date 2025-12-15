@@ -19,6 +19,7 @@ class TransacaoResponse(BaseModel):
     data_pagamento: Optional[datetime] = None
     anexo_id: Optional[UUID] = None
     valor: Optional[float] = None
+    valor_pago: Optional[float] = None
     numero_parcela: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -35,6 +36,7 @@ class TransacaoUpdate(BaseModel):
     status_comprovante: Optional[str] = None
     data_pagamento: Optional[datetime] = None
     anexo: Optional[AnexoRequest] = None
+    valor_pago: Optional[float] = None
 
 
 class PaginatedTransacaoResponse(BaseModel):

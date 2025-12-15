@@ -11,6 +11,7 @@ class TransacaoModel(Base):
     contrato_id = Column(UUID(as_uuid=True), nullable=False)
     plano_id = Column(UUID(as_uuid=True), nullable=True)
     valor = Column(Numeric(10, 2), index=True, nullable=True)
+    valor_pago = Column(Numeric(10, 2), index=True, default=0)
     numero_parcela = Column(Integer, index=True, nullable=True)
     numero_contrato = Column(Integer, index=True, nullable=True)
     status_parcela = Column(String, index=True, nullable=True)

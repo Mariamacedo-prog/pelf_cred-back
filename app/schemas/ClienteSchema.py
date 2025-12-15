@@ -9,6 +9,7 @@ from app.schemas.EnderecoSchema import EnderecoRequest, EnderecoUpdate
 class ClienteBase(BaseModel):
     id: Optional[UUID] = Field(default_factory=uuid4)
     endereco_id: Optional[UUID] = None
+    endereco_comercial_id: Optional[UUID] = None
     nome: str
     documento: str
     email: EmailStr
@@ -31,6 +32,7 @@ class ClienteRequest(BaseModel):
     telefone: Optional[str] = None
     grupo_segmento: Optional[str] = None
     endereco: EnderecoRequest
+    endereco_comercial: Optional[EnderecoRequest]
 
 
 class ClienteResponse(BaseModel):
@@ -40,6 +42,7 @@ class ClienteResponse(BaseModel):
     email: EmailStr
     telefone: Optional[str] = None
     grupo_segmento: Optional[str] = None
+    endereco_comercial: Optional[EnderecoRequest] = None
     endereco: EnderecoRequest = None
     ativo: Optional[bool] = None
     created_at: Optional[datetime] = None
@@ -57,6 +60,7 @@ class ClienteContratoResponse(BaseModel):
     email: EmailStr
     telefone: Optional[str] = None
     grupo_segmento: Optional[str] = None
+    endereco_comercial: Optional[EnderecoRequest] = None
     endereco: EnderecoRequest = None
     ativo: Optional[bool] = None
 
@@ -77,4 +81,5 @@ class ClienteUpdate(BaseModel):
     telefone: Optional[str] = None
     email: Optional[EmailStr] = None
     grupo_segmento: Optional[str] = None
+    endereco_comercial: Optional[EnderecoUpdate] = None
     endereco: Optional[EnderecoUpdate] = None

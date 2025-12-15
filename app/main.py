@@ -14,6 +14,7 @@ async def startup_event():
 origins = [
     "https://pelf-cred.netlify.app",
     "http://localhost:4200",
+    "http://localhost:4200"
 ]
 
 app.add_middleware(

@@ -6,7 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, date
 from starlette import status
 from starlette.responses import JSONResponse
-
+from decimal import Decimal
+from app.Enum.StatusComprovante import StatusComprovante
+from app.Enum.StatusParcela import StatusParcela
 from app.connection.database import get_db
 from app.core.anexo_utils import base64_to_bytes
 from app.core.auth_utils import verificar_token
@@ -61,6 +63,7 @@ async def listar(
         transacao_response = TransacaoResponse(
             id=transacao.id,
             valor=transacao.valor,
+            valor_pago=transacao.valor_pago,
             contrato_id=transacao.contrato_id,
             plano_id=transacao.plano_id,
             comprovante_numero=transacao.comprovante_numero,
@@ -116,10 +119,9 @@ async def atualizar(id: uuid.UUID, form_data: TransacaoUpdate,
 
     transacao.updated_by = uuid.UUID(user_id)
 
+
     if form_data.comprovante_numero is not None:
         transacao.comprovante_numero = form_data.comprovante_numero
-    if form_data.data_pagamento is not None:
-        transacao.data_pagamento = form_data.data_pagamento
     if form_data.data_pagamento is not None:
         transacao.data_pagamento = form_data.data_pagamento
     if form_data.status_parcela is not None:
@@ -129,8 +131,19 @@ async def atualizar(id: uuid.UUID, form_data: TransacaoUpdate,
     if form_data.status_comprovante is not None:
         transacao.status_comprovante = form_data.status_comprovante
 
+    valor_pago = transacao.valor_pago
+    if form_data.valor_pago is not None:
+        valor_pago = valor_pago + Decimal(str(form_data.valor_pago))
+
+    transacao.valor_pago = valor_pago
+    if valor_pago >= transacao.valor:
+        transacao.status_parcela = StatusParcela.PAGA.value
+    else:
+        transacao.status_parcela = StatusParcela.EM_PAGAMENTO.value
+
     anexo = form_data.anexo
     if anexo is not None:
+        transacao.status_comprovante = StatusComprovante.EM_ANALISE.value
         if anexo.id:
             query_anexo_existente = select(AnexoModel).where(AnexoModel.id == anexo.id)
             result_anexo = await db.execute(query_anexo_existente)
@@ -195,10 +208,10 @@ async def total(
     stmt_update = (
         update(TransacaoModel)
         .where(
-            TransacaoModel.status_parcela == "GERADO",
+            TransacaoModel.status_parcela == StatusParcela.GERADO.value,
             TransacaoModel.data_vencimento < hoje
         )
-        .values(status_parcela="EM_ATRASO")
+        .values(status_parcela=StatusParcela.EM_ATRASO.value)
     )
     await db.execute(stmt_update)
     await db.commit()
@@ -218,9 +231,18 @@ async def total(
     res = await db.execute(query)
     resultados = {row.status_parcela: row.total or 0 for row in res.fetchall()}
 
+    queryEmPagamento = select(
+        TransacaoModel.status_parcela,
+        func.sum(TransacaoModel.valor_pago).label("total")
+    )
+    queryEmPagamento = queryEmPagamento.group_by(TransacaoModel.status_parcela)
+    resEmPagamento = await db.execute(queryEmPagamento)
+    resultadosEmPagamento = {row.status_parcela: row.total or 0 for row in resEmPagamento.fetchall()}
+
+
     totais = TransacaoTotais(
         total_gerado=resultados.get("GERADO", 0),
-        total_pago=resultados.get("PAGA", 0),
+        total_pago=resultados.get("PAGA", 0) + resultadosEmPagamento.get("EM_PAGAMENTO", 0),
         total_em_atraso=resultados.get("EM_ATRASO", 0),
         total_cancelado=resultados.get("CANCELADO", 0)
     )
