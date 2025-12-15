@@ -14,6 +14,7 @@ class VendedorBase(BaseModel):
     email: EmailStr
     telefone: str
     rg: Optional[str] = None
+    comissao_pct: Optional[float] = None
     ativo: Optional[bool] = None
     endereco_id: Optional[UUID] = None
     foto_id: Optional[UUID] = None
@@ -31,6 +32,7 @@ class VendedorRequest(BaseModel):
     cpf: str
     email: EmailStr
     telefone: str
+    comissao_pct: Optional[float] = None
     rg: Optional[str] = None
     ativo: Optional[bool] = None
     foto: Optional[AnexoRequest] = None
@@ -42,6 +44,7 @@ class VendedorResponse(BaseModel):
     cpf: str
     email: EmailStr
     telefone: str
+    comissao_pct: Optional[float] = None
     rg: Optional[str] = None
     ativo: Optional[bool] = None
     foto: Optional[AnexoRequest] = None
@@ -60,6 +63,7 @@ class VendedorContratoResponse(BaseModel):
     cpf: str
     email: EmailStr
     telefone: str
+    comissao_pct: Optional[float] = None
     rg: Optional[str] = None
     ativo: Optional[bool] = None
 
@@ -77,6 +81,7 @@ class VendedorUpdate(BaseModel):
     id: Optional[UUID] = Field(default_factory=uuid4)
     nome: Optional[str]  = None
     cpf: Optional[str]  = None
+    comissao_pct: Optional[float] = None
     email: Optional[EmailStr]  = None
     telefone: Optional[str]  = None
     rg: Optional[str]  = None

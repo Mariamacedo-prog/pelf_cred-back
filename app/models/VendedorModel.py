@@ -2,7 +2,7 @@ import uuid
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Numeric
 from app.connection.base_class import Base
 
 class VendedorModel(Base):
@@ -12,6 +12,7 @@ class VendedorModel(Base):
     nome = Column(String, index=True, nullable=False)
     cpf = Column(String, index=True, nullable=False)
     rg = Column(String, index=True, nullable=True)
+    comissao_pct = Column(Numeric(10, 2), index=True, default=0)
     endereco_id = Column(UUID(as_uuid=True), ForeignKey("enderecos.id"), nullable=True)
     telefone = Column(String, index=True, nullable=False)
     email = Column(String, index=True, nullable=False)

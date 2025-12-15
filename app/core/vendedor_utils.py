@@ -105,6 +105,7 @@ async def listar(
         vendedor_response = VendedorResponse(
             id=vendedor.id,
             nome=vendedor.nome,
+            comissao_pct=vendedor.comissao_pct,
             cpf=vendedor.cpf,
             rg=vendedor.rg,
             telefone=vendedor.telefone,
@@ -181,6 +182,7 @@ async def por_id(id: uuid.UUID,
         id=vendedor.id,
         nome=vendedor.nome,
         cpf=vendedor.cpf,
+        comissao_pct=vendedor.comissao_pct,
         rg=vendedor.rg,
         telefone=vendedor.telefone,
         email=vendedor.email,
@@ -259,6 +261,7 @@ async def criar(form_data: VendedorRequest,
 
     novo = VendedorModel(
         id=form_data.id,
+        comissao_pct=form_data.comissao_pct,
         nome=form_data.nome,
         cpf=form_data.cpf,
         rg=form_data.rg,
@@ -346,6 +349,8 @@ async def atualizar(id: uuid.UUID, form_data: VendedorUpdate,
         vendedor.telefone = form_data.telefone
     if form_data.rg is not None:
         vendedor.rg = form_data.rg
+    if form_data.comissao_pct is not None:
+        vendedor.comissao_pct = form_data.comissao_pct
 
     if form_data.endereco:
         if vendedor.endereco_id:
