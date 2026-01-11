@@ -19,6 +19,7 @@ class ParcelamentoBase(BaseModel):
     data_ultimo_pagamento: Optional[datetime] = None
     qtd_parcelas_pagas: Optional[int] = None
     ativo: Optional[bool] = None
+    tipo_pagamento: Optional[str] = None
     created_by: Optional[UUID] = None
     updated_by: Optional[UUID] = None
     deleted_by: Optional[UUID] = None
@@ -42,6 +43,7 @@ class ParcelamentoRequest(BaseModel):
     taxa_juros: Optional[float] = None
     data_ultimo_pagamento: Optional[datetime] = None
     qtd_parcelas_pagas: Optional[int] = None
+    tipo_pagamento: Optional[str] = None
     ativo: Optional[bool] = None
 
 
@@ -61,6 +63,7 @@ class ParcelamentoResponse(BaseModel):
     data_ultimo_pagamento: Optional[datetime] = None
     qtd_parcelas_pagas: Optional[int] = None
     ativo: Optional[bool] = None
+    tipo_pagamento: Optional[str] = None
     created_by: Optional[UUID] = None
     updated_by: Optional[UUID] = None
     deleted_by: Optional[UUID] = None
@@ -93,3 +96,4 @@ class ParcelamentoUpdate(BaseModel):
     data_ultimo_pagamento: Optional[datetime] = None
     qtd_parcelas_pagas: Optional[int] = None
     ativo: Optional[bool] = None
+    tipo_pagamento: Optional[str] = None

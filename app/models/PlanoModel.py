@@ -28,5 +28,3 @@ class PlanoModel(Base):
     updated_by = Column(UUID(as_uuid=True), index=True, nullable=True)
     deleted_at = Column(DateTime(timezone=True), nullable=True)
     deleted_by = Column(UUID(as_uuid=True), index=True, nullable=True)
-
-    contrato = relationship("ContratoModel", back_populates="plano")

@@ -4,10 +4,9 @@ from uuid import UUID, uuid4
 from datetime import datetime
 
 from app.schemas.AnexoSchema import AnexoRequest
-from app.schemas.ClienteSchema import ClienteResponse, ClienteContratoResponse
+from app.schemas.ClienteSchema import  ClienteContratoResponse
 from app.schemas.ParcelamentoSchema import ParcelamentoRequest, ParcelamentoResponse, ParcelamentoUpdate
-from app.schemas.PlanoSchema import PlanoRequest, PlanoServicoResponse
-from app.schemas.VendedorSchema import VendedorResponse, VendedorContratoResponse
+from app.schemas.VendedorSchema import  VendedorContratoResponse
 
 
 class ContratoBase(BaseModel):
@@ -18,7 +17,6 @@ class ContratoBase(BaseModel):
     vendedor_id: Optional[UUID] = None
     cliente_assinatura_id: Optional[UUID] = None
     responsavel_assinatura_id: Optional[UUID] = None
-    plano_id: Optional[UUID] = None
     nome: Optional[str] = None
     documento: Optional[str] = None
     status_cobranca: Optional[str] = None
@@ -39,7 +37,6 @@ class ContratoRequest(BaseModel):
     numero: Optional[int] = None
     cliente_id: Optional[UUID] = None
     vendedor_id: Optional[UUID] = None
-    plano_id: Optional[UUID] = None
     nome: Optional[str] = None
     documento: Optional[str] = None
     status_cobranca: Optional[str] = None
@@ -59,7 +56,6 @@ class ContratoResponse(BaseModel):
     numero: Optional[int] = None
     cliente: Optional[ClienteContratoResponse] = None
     vendedor: Optional[VendedorContratoResponse] = None
-    plano: Optional[PlanoServicoResponse] = None
     nome: Optional[str] = None
     documento: Optional[str] = None
     status_cobranca: Optional[str] = None
@@ -81,7 +77,6 @@ class ContratoResponseShort(BaseModel):
     id: Optional[UUID] = Field(default_factory=uuid4)
     numero: Optional[int] = None
     cliente: Optional[ClienteContratoResponse] = None
-    plano: Optional[PlanoRequest] = None
     status_cobranca: Optional[str] = None
     status_contrato: Optional[str] = None
     ativo: Optional[bool] = None
@@ -103,7 +98,6 @@ class ContratoUpdate(BaseModel):
     id: Optional[UUID] = Field(default_factory=uuid4)
     cliente_id: Optional[UUID] = None
     vendedor_id: Optional[UUID] = None
-    plano_id: Optional[UUID] = None
     parcelamento: Optional[ParcelamentoUpdate] = None
     cliente_assinatura: Optional[AnexoRequest] = None
     responsavel_assinatura: Optional[AnexoRequest] = None

@@ -2,7 +2,9 @@ import uuid
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from sqlalchemy import Column, String, Boolean, ForeignKey, DateTime, Numeric, Integer
+from sqlalchemy import Column, String, Boolean, DateTime, Numeric, Integer
+
+from app.Enum.TipoPagamento import TipoPagamento
 from app.connection.base_class import Base
 
 class ParcelamentoModel(Base):
@@ -23,6 +25,7 @@ class ParcelamentoModel(Base):
     data_ultimo_pagamento = Column(DateTime(timezone=True), nullable=True)
     qtd_parcelas_pagas = Column(Integer, index=True, nullable=True)
     ativo = Column(Boolean, default=True)
+    tipo_pagamento = Column(String, index=True, default=TipoPagamento.MENSAL.value, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     created_by = Column(UUID(as_uuid=True), index=True, nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

@@ -23,21 +23,17 @@ from app.models.AnexoModel import AnexoModel
 from app.models.EnderecoModel import EnderecoModel
 from app.models.LogModel import LogModel
 from app.models.ParcelamentoModel import ParcelamentoModel
-from app.models.PlanoModel import PlanoModel
 from sqlalchemy import func, and_, or_, cast, String
 
-from app.models.ServicoModel import ServicoModel
 from app.models.TransacaoModel import TransacaoModel
 from app.models.VendedorModel import VendedorModel
 from app.schemas.AnexoSchema import AnexoRequest
 from app.schemas.ClienteSchema import  ClienteContratoResponse
-from app.schemas.ContratoSchema import ContratoRequest, ContratoResponse, ContratoResponseShort
+from app.schemas.ContratoSchema import ContratoRequest, ContratoResponse, ContratoResponseShort, ContratoUpdate
 from app.schemas.EnderecoSchema import EnderecoRequest
 from app.schemas.ParcelamentoSchema import ParcelamentoResponse
-from app.schemas.PlanoSchema import PlanoUpdate, PlanoRequest, PlanoServicoResponse
 from sqlalchemy.future import select
 
-from app.schemas.ServicoSchema import ServicoList
 from app.schemas.VendedorSchema import VendedorContratoResponse
 from datetime import date
 from dateutil.relativedelta import relativedelta
@@ -59,20 +55,7 @@ def safe_get(obj, attr, default=""):
 async def criar(form_data: ContratoRequest,
                      db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
 
-    queryPlano = select(ContratoModel).where(
-        and_(
-                ContratoModel.cliente_id == form_data.cliente_id,
-                ContratoModel.ativo == True,
-                ContratoModel.plano_id == form_data.plano_id,
-        )
-    )
-    resultPlano = await db.execute(queryPlano)
-    contratoPlano = resultPlano.scalar_one_or_none()
-    if contratoPlano:
-        raise HTTPException(status_code=400, detail=f"Já existe um contrato ativo para este cliente com o mesmo plano selecionado.")
-
     form_data.id = uuid.uuid4()
-
     if not form_data.cliente_id:
         raise HTTPException(status_code=400, detail=f"Cliente inválido, tente novamente!")
 
@@ -87,23 +70,6 @@ async def criar(form_data: ContratoRequest,
     if not contratoClienteId:
         raise HTTPException(status_code=400, detail=f"Cliente não localizado ou inativo, verifique os dados e tente novamente.")
 
-
-    if not form_data.plano_id:
-        raise HTTPException(status_code=400, detail=f"Plano inválido, tente novamente!")
-
-    queryPlanoId = select(PlanoModel).where(
-        and_(
-            PlanoModel.id == form_data.plano_id,
-            PlanoModel.ativo == True
-        )
-    )
-    resultPlanoId = await db.execute(queryPlanoId)
-    contratoPlanoId = resultPlanoId.scalar_one_or_none()
-    if not contratoPlanoId:
-        raise HTTPException(status_code=400,
-                            detail=f"Plano não localizado ou inativo, verifique os dados e tente novamente.")
-
-
     if form_data.vendedor_id is not None:
         queryVendedorId = select(VendedorModel).where(
             and_(
@@ -117,8 +83,6 @@ async def criar(form_data: ContratoRequest,
             raise HTTPException(status_code=400,
                                 detail=f"Vendedor não localizado ou inativo, verifique os dados e tente novamente.")
 
-
-
     if not form_data.parcelamento.data_inicio:
         raise HTTPException(status_code=400, detail=f"Por favor, escolha a data de início.")
 
@@ -128,9 +92,6 @@ async def criar(form_data: ContratoRequest,
             status_code=400,
             detail="O valor total e o valor da parcela devem ser maiores que zero."
         )
-
-
-
 
     anexos_id = []
     if form_data.anexos_list is not None:
@@ -160,6 +121,7 @@ async def criar(form_data: ContratoRequest,
         valor_total= form_data.parcelamento.valor_total,
         valor_parcela= form_data.parcelamento.valor_parcela,
         valor_entrada= form_data.parcelamento.valor_entrada,
+        tipo_pagamento=form_data.parcelamento.tipo_pagamento,
         qtd_parcela= form_data.parcelamento.qtd_parcela,
         avista= form_data.parcelamento.avista,
         taxa_juros= form_data.parcelamento.taxa_juros,
@@ -178,9 +140,7 @@ async def criar(form_data: ContratoRequest,
         responsavel_assinatura_id=None,
         cliente_id=form_data.cliente_id,
         vendedor_id=form_data.vendedor_id,
-        plano_id=form_data.plano_id,
         anexos_list_id=anexos_id,
-        servicos_list_id=None,
         nome=contratoClienteId.nome,
         documento=contratoClienteId.documento,
         status_cobranca=StatusCobranca.EM_DIA.value,
@@ -249,7 +209,6 @@ async def listar(
         joinedload(ContratoModel.cliente_assinatura),
         joinedload(ContratoModel.cliente),
         joinedload(ContratoModel.vendedor),
-        joinedload(ContratoModel.plano),
     )
 
     if filtro:
@@ -279,7 +238,7 @@ async def listar(
                 data_ultimo_pagamento=contrato.parcelamento.data_ultimo_pagamento,
                 qtd_parcelas_pagas=contrato.parcelamento.qtd_parcelas_pagas,
                 ativo=contrato.parcelamento.ativo,
-
+                tipo_pagamento=contrato.parcelamento.tipo_pagamento,
                 created_at = contrato.parcelamento.created_at,
                 updated_at = contrato.parcelamento.updated_at,
                 deleted_at=contrato.parcelamento.deleted_at,
@@ -347,31 +306,6 @@ async def listar(
                 ativo=contrato.cliente.ativo
             )
 
-        vendedor = None
-        if contrato.vendedor:
-            vendedor = VendedorContratoResponse(
-                id=contrato.vendedor.id,
-                nome=contrato.vendedor.nome,
-                cpf=contrato.vendedor.cpf,
-                email=contrato.vendedor.email,
-                telefone=contrato.vendedor.telefone,
-                rg=contrato.vendedor.rg,
-                ativo=contrato.vendedor.ativo
-            )
-
-        plano = None
-        if contrato.plano:
-            plano = PlanoRequest(
-                id=contrato.plano.id,
-                nome=contrato.plano.nome,
-                descricao=contrato.plano.descricao,
-                valor_mensal=contrato.plano.valor_mensal,
-                numero_parcelas=contrato.plano.numero_parcelas,
-                avista=contrato.plano.avista,
-                periodo_vigencia=contrato.plano.periodo_vigencia,
-                servicos_vinculados=contrato.plano.servicos_vinculados
-            )
-
         response = ContratoResponseShort(
             id=contrato.id,
             numero=contrato.numero,
@@ -379,7 +313,6 @@ async def listar(
             status_cobranca=contrato.status_cobranca,
             status_contrato=contrato.status_contrato,
             parcelamento=parcelamento,
-            plano=plano,
             cliente=cliente,
             created_at=contrato.created_at,
             updated_at=contrato.updated_at
@@ -406,7 +339,6 @@ async def por_id(id: uuid.UUID,
         joinedload(ContratoModel.cliente_assinatura),
         joinedload(ContratoModel.cliente),
         joinedload(ContratoModel.vendedor),
-        joinedload(ContratoModel.plano),
     ).where(ContratoModel.id == id)
 
     result = await db.execute(query)
@@ -431,7 +363,7 @@ async def por_id(id: uuid.UUID,
             data_ultimo_pagamento=contrato.parcelamento.data_ultimo_pagamento,
             qtd_parcelas_pagas=contrato.parcelamento.qtd_parcelas_pagas,
             ativo=contrato.parcelamento.ativo,
-
+            tipo_pagamento=contrato.parcelamento.tipo_pagamento,
             created_at=contrato.parcelamento.created_at,
             updated_at=contrato.parcelamento.updated_at,
             deleted_at=contrato.parcelamento.deleted_at,
@@ -533,40 +465,6 @@ async def por_id(id: uuid.UUID,
             ativo=contrato.vendedor.ativo
         )
 
-    servicos_list = []
-    if contrato.plano.servicos_vinculados:
-        for servico in contrato.plano.servicos_vinculados:
-            query = select(ServicoModel).where(
-                and_(
-                    ServicoModel.id == servico
-                )
-            )
-            result = await db.execute(query)
-            item = result.scalar_one_or_none()
-
-            if item:
-                servicoItem = ServicoList(
-                    id=item.id,
-                    nome=item.nome,
-                    valor=item.valor
-                )
-                servicos_list.append(servicoItem)
-
-    plano = None
-    if contrato.plano:
-        plano = PlanoServicoResponse(
-            id=contrato.plano.id,
-            nome=contrato.plano.nome,
-            descricao=contrato.plano.descricao,
-            valor_mensal=contrato.plano.valor_mensal,
-            numero_parcelas=contrato.plano.numero_parcelas,
-            tipo_pagamento=contrato.plano.tipo_pagamento,
-            ativo=contrato.plano.ativo,
-            avista=contrato.plano.avista,
-            periodo_vigencia=contrato.plano.periodo_vigencia,
-            servicos_vinculados=servicos_list
-        )
-
     response = ContratoResponse(
         id=contrato.id,
         numero=contrato.numero,
@@ -578,7 +476,6 @@ async def por_id(id: uuid.UUID,
         parcelamento=parcelamento,
         cliente=cliente,
         vendedor=vendedor,
-        plano=plano,
         anexos_list=anexo_list,
         responsavel_assinatura=responsavel_assinatura,
         cliente_assinatura=cliente_assinatura,
@@ -593,7 +490,7 @@ async def por_id(id: uuid.UUID,
     return response
 
 
-async def atualizar(id: uuid.UUID, form_data: PlanoUpdate,
+async def atualizar(id: uuid.UUID, form_data: ContratoUpdate,
                    db: AsyncSession = Depends(get_db), user_id: str = Depends(verificar_token)):
     queryContrato = select(ContratoModel).where(ContratoModel.id == id)
     resultContrato = await db.execute(queryContrato)
@@ -603,21 +500,6 @@ async def atualizar(id: uuid.UUID, form_data: PlanoUpdate,
 
     if not contrato_existente:
         raise HTTPException(status_code=404, detail="Contrato não encontrado.")
-
-    queryPlanoDuplicado = select(ContratoModel).where(
-        and_(
-            ContratoModel.cliente_id == form_data.cliente_id,
-            ContratoModel.plano_id == form_data.plano_id,
-            ContratoModel.ativo == True,
-            ContratoModel.id != id
-        )
-    )
-    resultPlanoDuplicado = await db.execute(queryPlanoDuplicado)
-    if resultPlanoDuplicado.scalar_one_or_none():
-        raise HTTPException(
-            status_code=400,
-            detail="Já existe um contrato ativo para este cliente com o mesmo plano."
-        )
 
     queryCliente = select(ClienteModel).where(
         and_(
@@ -629,17 +511,6 @@ async def atualizar(id: uuid.UUID, form_data: PlanoUpdate,
     cliente = resultCliente.scalar_one_or_none()
     if not cliente:
         raise HTTPException(status_code=400, detail="Cliente não localizado ou inativo.")
-
-    queryPlano = select(PlanoModel).where(
-        and_(
-            PlanoModel.id == form_data.plano_id,
-            PlanoModel.ativo == True
-        )
-    )
-    resultPlano = await db.execute(queryPlano)
-    plano = resultPlano.scalar_one_or_none()
-    if not plano:
-        raise HTTPException(status_code=400, detail="Plano não localizado ou inativo.")
 
     if form_data.vendedor_id:
         queryVendedor = select(VendedorModel).where(
@@ -746,6 +617,10 @@ async def atualizar(id: uuid.UUID, form_data: PlanoUpdate,
                 parcelamento_existente.data_ultimo_pagamento = form_data.parcelamento.data_ultimo_pagamento
             if parcelamento_existente.qtd_parcelas_pagas is not None:
                 parcelamento_existente.qtd_parcelas_pagas = form_data.parcelamento.qtd_parcelas_pagas
+
+            if parcelamento_existente.tipo_pagamento is not None:
+                parcelamento_existente.tipo_pagamento = form_data.parcelamento.tipo_pagamento
+
             parcelamento_existente.updated_by = uuid.UUID(user_id)
             parcelamento_existente.updated_at = datetime.utcnow()
 
@@ -767,6 +642,7 @@ async def atualizar(id: uuid.UUID, form_data: PlanoUpdate,
             taxa_juros=form_data.parcelamento.taxa_juros,
             data_ultimo_pagamento=form_data.parcelamento.data_ultimo_pagamento,
             qtd_parcelas_pagas=form_data.parcelamento.qtd_parcelas_pagas,
+            tipo_pagamento=form_data.parcelamento.tipo_pagamento,
             ativo=True,
             created_by=uuid.UUID(user_id)
         )
@@ -778,7 +654,6 @@ async def atualizar(id: uuid.UUID, form_data: PlanoUpdate,
     contrato_existente.parcelamento_id = parcelamento_id
     contrato_existente.cliente_id = form_data.cliente_id
     contrato_existente.vendedor_id = form_data.vendedor_id
-    contrato_existente.plano_id = form_data.plano_id
     contrato_existente.anexos_list_id = anexos_final_ids
     contrato_existente.nome = cliente.nome
     contrato_existente.documento = cliente.documento
@@ -825,8 +700,6 @@ async def mudar_status_contrato(id: uuid.UUID, status: StatusContrato, db: Async
         contrato_existente.responsavel_assinatura_id = None
         contrato_existente.cliente_assinatura_id = None
 
-
-
     dados_depois = limpar_dict_para_json(contrato_existente)
 
     log = LogModel(
@@ -860,7 +733,6 @@ async def mudar_status_contrato(id: uuid.UUID, status: StatusContrato, db: Async
 async def gerar_transacoes(id: uuid.UUID, db: AsyncSession = Depends(get_db),  user_id: str = Depends(verificar_token)):
     queryContrato = select(ContratoModel).options(
         joinedload(ContratoModel.parcelamento),
-        joinedload(ContratoModel.plano),
     ).where(ContratoModel.id == id)
     resultContrato = await db.execute(queryContrato)
     contrato_existente = resultContrato.scalar_one_or_none()
@@ -873,9 +745,9 @@ async def gerar_transacoes(id: uuid.UUID, db: AsyncSession = Depends(get_db),  u
     if qtd_parcelas:
         for i in range(qtd_parcelas):
             data = contrato_existente.parcelamento.data_inicio
-            if contrato_existente.plano.tipo_pagamento == TipoPagamento.MENSAL.value:
+            if contrato_existente.parcelamento.tipo_pagamento == TipoPagamento.MENSAL.value:
                 data = data + relativedelta(months=i)
-            elif contrato_existente.plano.tipo_pagamento == TipoPagamento.SEMANAL.value:
+            elif contrato_existente.parcelamento.tipo_pagamento == TipoPagamento.SEMANAL.value:
                 data = data + relativedelta(days=i * 7)
             else:
                 data = data + relativedelta(months=i)
@@ -883,7 +755,6 @@ async def gerar_transacoes(id: uuid.UUID, db: AsyncSession = Depends(get_db),  u
             nova_parcela = TransacaoModel(
                 id = None,
                 contrato_id = contrato_existente.id,
-                plano_id = contrato_existente.plano.id,
                 valor = contrato_existente.parcelamento.valor_parcela,
                 numero_parcela  = i + 1,
                 numero_contrato = contrato_existente.numero,
@@ -1037,9 +908,9 @@ def get_data_format(data_inicio_raw):
 
 def get_data_list(data_inicio,i, res, datas_parcelas):
     data_parcela = data_inicio
-    if res.plano.tipo_pagamento == TipoPagamento.MENSAL.value:
+    if res.parcelamento.tipo_pagamento == TipoPagamento.MENSAL.value:
         data_parcela = data_inicio + relativedelta(months=i)
-    elif res.plano.tipo_pagamento == TipoPagamento.SEMANAL.value:
+    elif res.parcelamento.tipo_pagamento == TipoPagamento.SEMANAL.value:
         data_parcela = data_inicio + relativedelta(days=i * 7)
     else:
         data_parcela = data_inicio + relativedelta(months=i)
