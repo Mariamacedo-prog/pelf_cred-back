@@ -29,7 +29,7 @@ from app.schemas.VendedorSchema import VendedorRequest, VendedorResponse, Vended
 
 async def listar(
     pagina: int = Query(1, ge=1),
-    items: int = Query(10, ge=1, le=100),
+    items: int = Query(10, ge=1, le=15000),
     filtro: Optional[str] = Query(None),
     filtro_cidade: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db)

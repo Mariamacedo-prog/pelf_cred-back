@@ -4,7 +4,6 @@ from uuid import UUID
 from fastapi import Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, date
-from starlette import status
 from starlette.responses import JSONResponse
 from decimal import Decimal
 from app.Enum.StatusComprovante import StatusComprovante
@@ -14,9 +13,7 @@ from app.core.anexo_utils import base64_to_bytes
 from app.core.auth_utils import verificar_token
 from app.core.log_utils import limpar_dict_para_json
 from app.models.AnexoModel import AnexoModel
-from app.models.ContratoModel import ContratoModel
 from app.models.LogModel import LogModel
-from app.models.PlanoModel import PlanoModel
 from sqlalchemy import func, and_, update
 
 from sqlalchemy.future import select
@@ -27,7 +24,7 @@ from app.schemas.TransacaoSchema import TransacaoUpdate, PaginatedTransacaoRespo
 
 async def listar(
     pagina: int = Query(1, ge=1),
-    items: int = Query(10, ge=1, le=100),
+    items: int = Query(10, ge=1, le=15000),
     contrato_id: Optional[UUID] = Query(None),
     filtro: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db)

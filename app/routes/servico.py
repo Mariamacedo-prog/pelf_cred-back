@@ -15,7 +15,7 @@ router = APIRouter()
 @router.get("/api/v1/servicos", response_model=PaginatedServicoResponse, tags=["Serviço"])
 async def listar_servicos(
     pagina: int = Query(1, ge=1),
-    items: int = Query(10, ge=1, le=100),
+    items: int = Query(10, ge=1, le=15000),
     filtro: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(verificar_token)

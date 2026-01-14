@@ -53,4 +53,4 @@ async def verificar_token(token: str = Depends(oauth2_scheme)):
 
 def passou_do_horario() -> bool:
     agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
-    return agora.hour >= 18
+    return agora.hour >= 23

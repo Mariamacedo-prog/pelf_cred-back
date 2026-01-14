@@ -24,7 +24,7 @@ from sqlalchemy.future import select
 
 async def listar(
         pagina: int = Query(1, ge=1),
-        items: int = Query(10, ge=1, le=100),
+        items: int = Query(10, ge=1, le=15000),
         buscar: Optional[str] = Query(None),
         data_cadastro: Optional[datetime] = Query(None),
         ativo: Optional[bool] = Query(None),

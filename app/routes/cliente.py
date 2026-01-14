@@ -25,7 +25,7 @@ router = APIRouter()
 @router.get("/api/v1/clientes", response_model=PaginatedClienteResponse, tags=["Cliente"])
 async def listar_clientes(
     pagina: int = Query(1, ge=1),
-    items: int = Query(10, ge=1, le=100),
+    items: int = Query(10, ge=1, le=15000),
     search: Optional[str] = Query(None),
     data_cadastro: Optional[datetime] = Query(None),
     ativo: Optional[bool] = Query(None),

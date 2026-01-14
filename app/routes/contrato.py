@@ -17,7 +17,7 @@ router = APIRouter()
 @router.get("/api/v1/contratos", response_model=PaginateContratoResponse, tags=["Contrato"])
 async def listar_contratos(
     pagina: int = Query(1, ge=1),
-    items: int = Query(10, ge=1, le=100),
+    items: int = Query(10, ge=1, le=15000),
     filtro: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(verificar_token)

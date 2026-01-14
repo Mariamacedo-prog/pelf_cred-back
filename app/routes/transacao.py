@@ -16,7 +16,7 @@ router = APIRouter()
 @router.get("/api/v1/transacoes", response_model=PaginatedTransacaoResponse, tags=["Transação"])
 async def listar_transacoes(
     pagina: int = Query(1, ge=1),
-    items: int = Query(10, ge=1, le=100),
+    items: int = Query(10, ge=1, le=15000),
     contrato_id: Optional[UUID] = Query(None),
     filtro: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
