@@ -95,8 +95,6 @@ async def listar(
                 uf=cliente.endereco_comercial.uf
             )
 
-
-
         cliente_response = ClienteResponse(
             id=cliente.id,
             nome=cliente.nome,
@@ -113,6 +111,7 @@ async def listar(
             deleted_by=cliente.deleted_by,
             endereco=endereco,
             endereco_comercial=endereco_comercial,
+
         )
 
         cliente_list.append(cliente_response)
