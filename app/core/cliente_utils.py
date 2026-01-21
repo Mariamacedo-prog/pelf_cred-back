@@ -59,7 +59,7 @@ async def listar(
 
     query = (
         select(ClienteModel)
-        .options(joinedload(ClienteModel.endereco))
+        .options(joinedload(ClienteModel.endereco), joinedload(ClienteModel.endereco_comercial))
         .where(*where_clause)
         .offset(offset)
         .limit(items)
@@ -82,6 +82,21 @@ async def listar(
                 uf=cliente.endereco.uf
             )
 
+        endereco_comercial = None
+        if cliente.endereco_comercial:
+            endereco_comercial = EnderecoRequest(
+                id=cliente.endereco_comercial.id,
+                cep=cliente.endereco_comercial.cep,
+                rua=cliente.endereco_comercial.rua,
+                numero=cliente.endereco_comercial.numero,
+                bairro=cliente.endereco_comercial.bairro,
+                complemento=cliente.endereco_comercial.complemento,
+                cidade=cliente.endereco_comercial.cidade,
+                uf=cliente.endereco_comercial.uf
+            )
+
+
+
         cliente_response = ClienteResponse(
             id=cliente.id,
             nome=cliente.nome,
@@ -97,6 +112,7 @@ async def listar(
             updated_by=cliente.updated_by,
             deleted_by=cliente.deleted_by,
             endereco=endereco,
+            endereco_comercial=endereco_comercial,
         )
 
         cliente_list.append(cliente_response)
