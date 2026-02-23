@@ -48,9 +48,6 @@ class ContratoRequest(BaseModel):
     anexos_list: Optional[List[AnexoRequest]] = None
 
 
-
-
-
 class ContratoResponse(BaseModel):
     id: Optional[UUID] = Field(default_factory=uuid4)
     numero: Optional[int] = None

@@ -6,9 +6,10 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth_utils import verificar_token, passou_do_horario
-from app.core.transacao_utils import listar, por_id, atualizar, total
+from app.core.transacao_utils import listar, por_id, atualizar, total, listar_em_atraso
 from app.connection.database import get_db
-from app.schemas.TransacaoSchema import PaginatedTransacaoResponse, TransacaoResponse, TransacaoUpdate, TransacaoTotais
+from app.schemas.TransacaoSchema import PaginatedTransacaoResponse, TransacaoResponse, TransacaoUpdate, TransacaoTotais, \
+    PaginatedTransacaoResponseAtraso
 
 router = APIRouter()
 
@@ -59,5 +60,18 @@ async def atualizar_transacao(id: UUID, form_data: TransacaoUpdate,
         raise HTTPException(status_code=400, detail=f"Horário não permitido.")
 
     res = await atualizar(id, form_data, db, user_id)
+
+    return res
+
+
+
+@router.get("/api/v1/transacoes/atraso", response_model=PaginatedTransacaoResponseAtraso, tags=["Transação"])
+async def listar_transacoes_atraso(
+    pagina: int = Query(1, ge=1),
+    items: int = Query(10, ge=1, le=15000),
+    filtro: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db)
+):
+    res = await listar_em_atraso(pagina, items, filtro, db)
 
     return res
