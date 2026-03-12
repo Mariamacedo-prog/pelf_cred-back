@@ -3,7 +3,7 @@ from enum import Enum
 class StatusCobranca(str, Enum):
     NAO_INICIADA = "NAO_INICIADA"
     EM_ANDAMENTO = "EM_ANDAMENTO"
-    EM_PAGAMENTO = "EM_PAGAMENTO"
+    PAGAMENTO_PARCIAL = "PAGAMENTO_PARCIAL"
     EM_DIA = "EM_DIA"
     ATRASADA = "ATRASADA"
     CANCELADA = "CANCELADA"

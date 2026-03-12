@@ -145,7 +145,7 @@ async def atualizar(id: uuid.UUID, form_data: TransacaoUpdate,
     if valor_pago >= transacao.valor:
         transacao.status_parcela = StatusParcela.PAGA.value
     else:
-        transacao.status_parcela = StatusParcela.EM_PAGAMENTO.value
+        transacao.status_parcela = StatusParcela.PAGAMENTO_PARCIAL.value
 
     anexo = form_data.anexo
     if anexo is not None:
@@ -246,7 +246,7 @@ async def total(
 
     totais = TransacaoTotais(
         total_gerado=resultados.get("GERADO", 0),
-        total_pago=resultados.get("PAGA", 0) + resultadosEmPagamento.get("EM_PAGAMENTO", 0),
+        total_pago=resultados.get("PAGA", 0) + resultadosEmPagamento.get("PAGAMENTO_PARCIAL", 0),
         total_em_atraso=resultados.get("EM_ATRASO", 0),
         total_cancelado=resultados.get("CANCELADO", 0)
     )
