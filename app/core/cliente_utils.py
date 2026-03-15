@@ -42,6 +42,7 @@ async def listar(
         where_clause.append(
             or_(
                 func.lower(ClienteModel.nome).ilike(filtro_str),
+                func.lower(ClienteModel.apelido).ilike(filtro_str),
                 func.lower(ClienteModel.documento).ilike(filtro_str),
             )
         )
@@ -99,6 +100,7 @@ async def listar(
             id=cliente.id,
             nome=cliente.nome,
             documento=cliente.documento,
+            apelido=cliente.apelido,
             email=cliente.email,
             telefone=cliente.telefone,
             grupo_segmento=cliente.grupo_segmento,
@@ -168,6 +170,7 @@ async def listar_por_id(id: uuid.UUID, cliente: ClienteResponse,
     cliente = ClienteResponse(
         id=id,
         nome=cliente.nome,
+        apelido=cliente.apelido,
         documento=cliente.documento,
         email=cliente.email,
         telefone=cliente.telefone,
@@ -229,6 +232,7 @@ async def criar(form_data: ClienteRequest,
     novo_cliente = ClienteModel(
         id=form_data.id,
         endereco_id=endereco_id,
+        apelido=form_data.apelido,
         endereco_comercial_id=endereco_comercial_id,
         nome=form_data.nome,
         documento=form_data.documento,
@@ -289,7 +293,8 @@ async def atualizar(id: uuid.UUID, form_data: ClienteUpdate,
         cliente.telefone = form_data.telefone
     if form_data.grupo_segmento is not None:
         cliente.grupo_segmento = form_data.grupo_segmento
-
+    if form_data.apelido is not None:
+        cliente.apelido = form_data.apelido
 
     if form_data.endereco:
         if cliente.endereco_id:

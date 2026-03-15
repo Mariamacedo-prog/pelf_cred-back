@@ -11,6 +11,7 @@ class ClienteBase(BaseModel):
     endereco_id: Optional[UUID] = None
     endereco_comercial_id: Optional[UUID] = None
     nome: str
+    apelido: Optional[str] = None
     documento: str
     email: EmailStr
     telefone: Optional[str] = None
@@ -27,6 +28,7 @@ class ClienteBase(BaseModel):
 class ClienteRequest(BaseModel):
     id: Optional[UUID] = Field(default_factory=uuid4)
     nome: str
+    apelido: Optional[str] = None
     documento: str
     email: EmailStr
     telefone: Optional[str] = None
@@ -38,6 +40,7 @@ class ClienteRequest(BaseModel):
 class ClienteResponse(BaseModel):
     id: Optional[UUID] = Field(default_factory=uuid4)
     nome: str
+    apelido: Optional[str] = None
     documento: str
     email: EmailStr
     telefone: Optional[str] = None
@@ -56,6 +59,7 @@ class ClienteResponse(BaseModel):
 class ClienteContratoResponse(BaseModel):
     id: Optional[UUID] = Field(default_factory=uuid4)
     nome: str
+    apelido: Optional[str] = None
     documento: str
     email: EmailStr
     telefone: Optional[str] = None
@@ -78,6 +82,7 @@ class ClienteUpdate(BaseModel):
     id: Optional[UUID] = Field(default_factory=uuid4)
     documento: Optional[str]  = None
     nome: Optional[str] = None
+    apelido: Optional[str] = None
     telefone: Optional[str] = None
     email: Optional[EmailStr] = None
     grupo_segmento: Optional[str] = None

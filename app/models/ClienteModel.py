@@ -15,6 +15,7 @@ class ClienteModel(Base):
     documento = Column(String, index=True, nullable=False)
     telefone = Column(String, index=True, nullable=False)
     email = Column(String, index=True, nullable=False)
+    apelido = Column(String, index=True, nullable=True)
     grupo_segmento = Column(String, index=True, nullable=True)
     ativo = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
