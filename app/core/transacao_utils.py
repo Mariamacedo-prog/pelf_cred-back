@@ -1,4 +1,5 @@
 import uuid
+from operator import or_
 from typing import Optional
 from uuid import UUID
 from fastapi import Depends, HTTPException, Query
@@ -281,7 +282,12 @@ async def listar_em_atraso(
 
     where_clause = []
 
-    where_clause.append(TransacaoModel.status_parcela == StatusParcela.EM_ATRASO.value)
+    where_clause.append(
+        or_(
+            TransacaoModel.status_parcela == StatusParcela.EM_ATRASO.value,
+            TransacaoModel.status_parcela == StatusParcela.PAGAMENTO_PARCIAL.value,
+        )
+    )
     if filtro is not None:
         if filtro == "7":
             where_clause.append(
