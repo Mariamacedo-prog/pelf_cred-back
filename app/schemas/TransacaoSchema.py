@@ -37,6 +37,7 @@ class TransacaoUpdate(BaseModel):
     status_comprovante: Optional[str] = None
     data_pagamento: Optional[datetime] = None
     anexo: Optional[AnexoRequest] = None
+    anexo_id: Optional[UUID] = None
     valor_pago: Optional[float] = None
 
 

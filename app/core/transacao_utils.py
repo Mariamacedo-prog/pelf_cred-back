@@ -180,6 +180,7 @@ async def atualizar(id: uuid.UUID, form_data: TransacaoUpdate,
             )
             db.add(novo_anexo)
             await db.flush()
+            transacao.anexo_id = novo_item_id
 
 
     dados_novos =  limpar_dict_para_json(transacao)
